@@ -5,8 +5,8 @@ from tqdm import tqdm
 import uuid
 from typing import List, Dict, Any
 
-# Import our custom PDF parser instead of PyPDFLoader
-from pdf_parser import extract_content_for_embedding
+# Import our custom PDF parser
+from pdf_parser import parse_pdf
 
 # Import embedding model
 from sentence_transformers import SentenceTransformer
@@ -14,7 +14,7 @@ from sentence_transformers import SentenceTransformer
 # Import Pinecone
 from pinecone import Pinecone, ServerlessSpec
 
-# Import our chunker
+# Import our updated chunker
 from document_chunker import process_documents
 
 # Load environment variables
@@ -28,13 +28,13 @@ INDEX_NAME = "document-analysis"
 
 # Company to PDF mapping - maps company names to their respective PDF files
 COMPANY_PDF_MAPPING = {
-    #   "enersys": ["EnerSys-2023-10K.pdf", "EnerSys-2017-10K.pdf"],
-    #   "amazon": ["Amazon10k2022.pdf"],
-    #   "apple": ["Apple_10-K-2021.pdf"],
-    #   "nvidia": ["Nvidia.pdf"],
-    #  "tesla": ["Tesla.pdf"],
-    #  "lockheed": ["Lockheed_martin_10k.pdf"]
-     "advent": ["Advent_Technologies_2022_10K.pdf"],
+       "enersys": ["EnerSys-2017-10K.pdf", "EnerSys-2023-10K.pdf"],
+       "amazon": ["Amazon10k2022.pdf"],
+       "apple": ["Apple_10-K-2021.pdf"],
+       "nvidia": ["Nvidia.pdf"],
+      "tesla": ["Tesla.pdf"],
+      "lockheed": ["Lockheed_martin_10k.pdf"],
+      "advent": ["Advent_Technologies_2022_10K.pdf"],
      "transdigm": ["TransDigm-2022-10K.pdf"]
 }
 
@@ -87,13 +87,17 @@ def prepare_metadata(chunk_text, chunk_metadata, pdf_path):
     """
     metadata = {
         "source": pdf_path,
-        "text": chunk_text,
-        "document_id": os.path.basename(pdf_path).replace(".pdf", "")
+        "document_id": os.path.basename(pdf_path).replace(".pdf", ""),
+        "text_snippet": chunk_text[:200] + "..." if len(chunk_text) > 200 else chunk_text
     }
     
     # Add any additional metadata from the chunking process
     if chunk_metadata:
         metadata.update(chunk_metadata)
+    
+    # Ensure page number is included (required for better retrieval)
+    if "page" in chunk_metadata:
+        metadata["page_number"] = chunk_metadata["page"]
     
     # Add special handling for table data
     if chunk_metadata and chunk_metadata.get("is_table", False):
@@ -101,11 +105,11 @@ def prepare_metadata(chunk_text, chunk_metadata, pdf_path):
         metadata["content_type"] = "table"
         if "table_id" in chunk_metadata:
             metadata["table_id"] = chunk_metadata["table_id"]
-        if "table_chunk" in chunk_metadata:
-            metadata["table_chunk"] = chunk_metadata["table_chunk"]
-        if "row_range" in chunk_metadata:
-            metadata["row_range"] = chunk_metadata["row_range"]
     
+    # Add content type if not already set
+    if "content_type" not in metadata:
+        metadata["content_type"] = "text"
+        
     return metadata
 
 class Document:
@@ -128,8 +132,8 @@ def process_and_ingest_pdf(index, embeddings_model, pdf_path, namespace, chunk_s
     """
     print(f"Processing {pdf_path} for namespace {namespace}...")
     
-    # Use our custom PDF parser instead of PyPDFLoader
-    extracted_content = extract_content_for_embedding(pdf_path)
+    # Use our custom PDF parser
+    extracted_content = parse_pdf(pdf_path)
     
     # Create a Document object to match expected format for process_documents
     document = Document(
@@ -137,7 +141,7 @@ def process_and_ingest_pdf(index, embeddings_model, pdf_path, namespace, chunk_s
         metadata={"source": pdf_path}
     )
     
-    # The document may contain tables, so let the chunker automatically handle tables
+    # Process the document through our updated chunking pipeline
     chunks = process_documents(
         [document],  # Pass as a list of documents
         chunk_size=chunk_size, 
@@ -164,7 +168,8 @@ def process_and_ingest_pdf(index, embeddings_model, pdf_path, namespace, chunk_s
         # Create embeddings for the batch
         texts = [chunk.page_content for chunk in current_batch]
         metadatas = [prepare_metadata(chunk.page_content, chunk.metadata, pdf_path) for chunk in current_batch]
-        ids = [str(uuid.uuid4()) for _ in range(len(current_batch))]
+        ids = [f"{namespace}-{chunk.metadata.get('page', '0')}-{idx}-{str(uuid.uuid4())[:8]}" 
+               for idx, chunk in enumerate(current_batch)]
         
         # Generate embeddings
         embeddings = embeddings_model.encode(texts, convert_to_numpy=True).tolist()
@@ -193,6 +198,40 @@ def get_index_stats(index):
     stats = index.describe_index_stats()
     print(f"Index stats: {stats}")
     return stats
+
+def search_by_page(index, embeddings_model, query, namespace, page_number=None, top_k=5):
+    """
+    Search for documents by query with optional page filter
+    
+    Args:
+        index: Pinecone index object
+        embeddings_model: Model to use for generating embeddings
+        query: Search query
+        namespace: Namespace to search in
+        page_number: Optional page number to filter results by
+        top_k: Number of results to return
+        
+    Returns:
+        Search results
+    """
+    # Generate embedding for the query
+    query_embedding = embeddings_model.encode(query, convert_to_numpy=True).tolist()
+    
+    # Create filter for page number if specified
+    filter_dict = {}
+    if page_number is not None:
+        filter_dict["page_number"] = str(page_number)
+    
+    # Perform the search
+    results = index.query(
+        namespace=namespace,
+        vector=query_embedding,
+        filter=filter_dict if filter_dict else None,
+        top_k=top_k,
+        include_metadata=True
+    )
+    
+    return results
 
 def ingest_all_documents():
     """Ingest all documents into Pinecone with appropriate namespaces"""
