@@ -14,7 +14,7 @@ from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
 from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
 # import YOUTUBE QA AGENT FILE
-from youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
+from llm_pipe.Ingestion_Retrieval.youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
 
 
 # Load environment variables
