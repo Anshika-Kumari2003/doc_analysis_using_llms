@@ -13,6 +13,9 @@ from collections import defaultdict
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
 from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
+# import YOUTUBE QA AGENT FILE
+from youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
+
 
 # Load environment variables
 load_dotenv()
@@ -178,7 +181,7 @@ def process_query_and_generate(company: str, query: str) -> str:
     return answer, doc_page_mapping
 
 def create_interface():
-    """Create Gradio interface for the PDF QA system with enhanced layout."""
+    """Create unified Gradio interface with two tabs: Document QA + YouTube QA."""
     # Create list of PDF options for dropdown
     pdf_options = []
     for company, pdfs in COMPANY_PDF_MAPPING.items():
@@ -186,87 +189,118 @@ def create_interface():
             pdf_options.append(f"{company.capitalize()}: {pdf}")
 
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
-        gr.Markdown("# 📊 Financial Reports QA\n**Extract valuable insights from SEC filings and annual reports**")
+        with gr.Tabs():
 
-        if not ollama_available:
-            gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
+            # === Tab 1: Document QA System ===
+            with gr.Tab("📄 Document QA System"):
+                gr.Markdown("# 📊 Financial Reports QA\n**Extract valuable insights from SEC filings and annual reports**")
 
-        with gr.Row():  # Full row split in two halves
-            with gr.Column(scale=1, min_width=600):  # Left side
-                with gr.Column():
-                    gr.Markdown("### 📁 Select Report & Ask Your Question")
+                if not ollama_available:
+                    gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
 
-                    pdf_dropdown = gr.Dropdown(
-                        choices=pdf_options,
-                        label="Select Financial Report",
-                        value=pdf_options[0] if pdf_options else None,
-                        interactive=True
-                    )
+                with gr.Row():  # Full row split in two halves
+                    with gr.Column(scale=1, min_width=600):  # Left side
+                        with gr.Column():
+                            gr.Markdown("### 📁 Select Report & Ask Your Question")
 
-                    query_input = gr.Textbox(
-                        lines=3,
-                        label="Your Question",
-                        placeholder="Example: What were the total R&D expenses for 2022?"
-                    )
+                            pdf_dropdown = gr.Dropdown(
+                                choices=pdf_options,
+                                label="Select Financial Report",
+                                value=pdf_options[0] if pdf_options else None,
+                                interactive=True
+                            )
 
-                    submit_btn = gr.Button("Get Answer", variant="primary")
+                            query_input = gr.Textbox(
+                                lines=3,
+                                label="Your Question",
+                                placeholder="Example: What were the total R&D expenses for 2022?"
+                            )
 
-                with gr.Column():
-                    gr.Markdown("### 🧠 Answer from the AI")
+                            submit_btn = gr.Button("Get Answer", variant="primary")
 
-                    answer_output = gr.Textbox(
-                        label="Answer",
-                        lines=10,
-                        show_copy_button=True
-                    )
+                        with gr.Column():
+                            gr.Markdown("### 🧠 Answer from the AI")
 
-                    speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
+                            answer_output = gr.Textbox(
+                                label="Answer",
+                                lines=10,
+                                show_copy_button=True
+                            )
 
-            with gr.Column(scale=1, min_width=600):  # Right side
-                with gr.Column():
-                    gr.Markdown("### 📄 Pages Cited in Answer")
+                            speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
 
-                    citation_gallery = gr.Gallery(
-                        label="Source Pages",
-                        show_label=True,
-                        columns=1,
-                        height="600px"
-                    )
+                    with gr.Column(scale=1, min_width=600):  # Right side
+                        with gr.Column():
+                            gr.Markdown("### 📄 Pages Cited in Answer")
 
-        # Handle submission
-        def on_submit(pdf_selection, query):
-            if not pdf_selection:
-                return "Please select a financial report first.", None, []
+                            citation_gallery = gr.Gallery(
+                                label="Source Pages",
+                                show_label=True,
+                                columns=1,
+                                height="600px"
+                            )
 
-            company = pdf_selection.split(":")[0].lower()
-            answer, doc_page_mapping = process_query_and_generate(company, query)
+                # Handle submission
+                def on_submit(pdf_selection, query):
+                    if not pdf_selection:
+                        return "Please select a financial report first.", None, []
 
-            # Load page images using the mapping
-            image_paths = []
-            for doc_id, pages in doc_page_mapping.items():
-                pdf_name = COMPANY_PDF_MAPPING[company][0]
-                image_map_file = f"{pdf_name}_images.json"
-                if os.path.exists(image_map_file):
-                    with open(image_map_file, "r") as f:
-                        image_map = json.load(f)
-                        for page in pages:
-                            path = image_map.get(page)
-                            if path and os.path.exists(path):
-                                image_paths.append(Image.open(path))
+                    company = pdf_selection.split(":")[0].lower()
+                    answer, doc_page_mapping = process_query_and_generate(company, query)
 
-            # Convert answer to speech using gTTS
-            tts = gTTS(answer)
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-            tts.save(temp_file.name)
+                    # Load page images using the mapping
+                    image_paths = []
+                    for doc_id, pages in doc_page_mapping.items():
+                        pdf_name = COMPANY_PDF_MAPPING[company][0]
+                        image_map_file = f"{pdf_name}_images.json"
+                        if os.path.exists(image_map_file):
+                            with open(image_map_file, "r") as f:
+                                image_map = json.load(f)
+                                for page in pages:
+                                    path = image_map.get(page)
+                                    if path and os.path.exists(path):
+                                        image_paths.append(Image.open(path))
 
-            return answer, temp_file.name, image_paths
+                    # Convert answer to speech using gTTS
+                    tts = gTTS(answer)
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                    tts.save(temp_file.name)
 
-        submit_btn.click(
-            fn=on_submit,
-            inputs=[pdf_dropdown, query_input],
-            outputs=[answer_output, speak_btn, citation_gallery]
-        )
+                    return answer, temp_file.name, image_paths
 
+                submit_btn.click(
+                    fn=on_submit,
+                    inputs=[pdf_dropdown, query_input],
+                    outputs=[answer_output, speak_btn, citation_gallery]
+                )
+
+            # === Tab 2: YouTube QA Agent ===
+            with gr.Tab("🎥 YouTube QA Agent"):
+                gr.Markdown("## 🎥 YouTube QA Agent (Powered by Ollama)")
+
+                with gr.Row():
+                    url_input = gr.Textbox(label="YouTube URL")
+                    model_selector = gr.Dropdown(choices=["mistral", "llama3", "gemma"], label="Ollama Model", value="mistral")
+                    fetch_button = gr.Button("Fetch Transcript")
+
+                status_output = gr.Textbox(label="Status", interactive=False)
+                fetch_button.click(fn=handle_url_submit, inputs=[url_input], outputs=status_output)
+
+                gr.Markdown("### ❓ Ask Questions")
+                with gr.Row():
+                    question_input = gr.Textbox(label="Your Question")
+                    ask_button = gr.Button("Ask")
+                    answer_output = gr.Textbox(label="Answer", interactive=False)
+
+                ask_button.click(fn=answer_question, inputs=[question_input, url_input, model_selector], outputs=answer_output)
+
+                gr.Markdown("### 🧾 Summarize Video")
+                with gr.Row():
+                    summarize_button = gr.Button("Summarize")
+                    summary_output = gr.Textbox(label="Summary", interactive=False)
+
+                summarize_button.click(fn=summarize_transcript, inputs=[url_input, model_selector], outputs=summary_output)
+                
     return demo
 
 
