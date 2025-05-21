@@ -3,6 +3,8 @@ import time
 from dotenv import load_dotenv
 from tqdm import tqdm
 import uuid
+import json
+import fitz  # PyMuPDF
 from typing import List, Dict, Any
 
 # Import our custom PDF parser
@@ -73,6 +75,22 @@ def init_pinecone(api_key, index_name, dimension):
     
     return pc, index
 
+def save_pdf_page_images(pdf_path, output_dir="page_images"):
+    os.makedirs(output_dir, exist_ok=True)
+    doc = fitz.open(pdf_path)
+    page_image_paths = {}
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+        pix = page.get_pixmap(dpi=150)
+        image_path = os.path.join(output_dir, f"{os.path.basename(pdf_path).replace('.pdf','')}_page_{page_num + 1}.png")
+        pix.save(image_path)
+        page_image_paths[str(page_num + 1)] = image_path  # Save as string for consistent key use
+
+    doc.close()
+    return page_image_paths
+
+
 def prepare_metadata(chunk_text, chunk_metadata, pdf_path):
     """
     Prepare metadata for a chunk
@@ -132,6 +150,11 @@ def process_and_ingest_pdf(index, embeddings_model, pdf_path, namespace, chunk_s
     """
     print(f"Processing {pdf_path} for namespace {namespace}...")
     
+    #New
+    image_map = save_pdf_page_images(pdf_path)
+    json.dump(image_map, open(f"{pdf_path}_images.json", "w"))
+
+
     # Use our custom PDF parser
     extracted_content = parse_pdf(pdf_path)
     

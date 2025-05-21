@@ -4,8 +4,11 @@ from typing import Dict, List, Tuple
 from dotenv import load_dotenv
 import re
 import requests
+from gtts import gTTS
+import tempfile
 import json
 import platform
+from PIL import Image
 from collections import defaultdict
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
@@ -136,7 +139,7 @@ Answer (remember to cite specific page numbers in your response):"""
                     "num_predict": 512
                 }
             },
-            timeout=180  # Increase timeout to 180 seconds
+            timeout=600  # Increase timeout to 180 seconds
         )
         
         if response.status_code == 200:
@@ -172,101 +175,197 @@ def process_query_and_generate(company: str, query: str) -> str:
         except Exception as e:
             answer = f"Error: Unable to connect to Ollama. Please make sure Ollama is installed and running with the phi3:mini model."
     
-    return answer
+    return answer, doc_page_mapping
+
+
+# def create_interface():
+#     """Create Gradio interface for the PDF QA system."""
+#     # Create list of PDF options for dropdown
+#     pdf_options = []
+#     for company, pdfs in COMPANY_PDF_MAPPING.items():
+#         for pdf in pdfs:
+#             pdf_options.append(f"{company.capitalize()}: {pdf}")
+    
+  
+#     with gr.Blocks(theme=gr.themes.Soft()) as demo:
+#         gr.Markdown("# 📊 Financial Reports QA\n**Extract valuable insights from SEC filings and annual reports**")
+        
+#         # Warning message if Ollama is not available
+#         if not ollama_available:
+#             gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
+
+#         # Input card
+#         with gr.Column(elem_classes="card"):
+#             gr.Markdown("**📁 Select Report & Ask Question**")
+            
+#             with gr.Row(equal_height=True):
+#                 pdf_dropdown = gr.Dropdown(
+#                     choices=pdf_options, 
+#                     label="Financial Report",
+#                     value=pdf_options[0] if pdf_options else None,
+#                     container=True,
+#                     interactive=True,
+#                     elem_classes="input-box"
+#                 )
+            
+#             query_input = gr.Textbox(
+#                 lines=3, 
+#                 label="Your Question",
+#                 placeholder="Example: What were the total R&D expenses for 2022?",
+#                 container=True,
+#                 elem_classes="input-box"
+#             )
+                    
+#             submit_btn = gr.Button(
+#                 "Get Answer", 
+#                 variant="primary",
+#                 elem_classes="primary",
+#                 size="lg"
+#             )
+        
+#         # Answer card
+#         with gr.Column(elem_classes="card"):
+#             gr.Markdown('**Response Based on the Selected Report**')
+#             answer_output = gr.Textbox(
+#                 label="Answer", 
+#                 lines=10,
+#                 show_copy_button=True,
+#                 container=True,
+#                 elem_classes="answer-box output-box"
+#             )
+#             citation_gallery = gr.Gallery(label="Cited Pages", show_label=True, columns=2, height="auto")
+#             speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
+        
+#         # Handle submission
+#         def on_submit(pdf_selection, query):
+#             if not pdf_selection:
+#                 return "Please select a financial report first."
+                
+#             company = pdf_selection.split(":")[0].lower()
+#             answer, doc_page_mapping = process_query_and_generate(company, query)
+
+#             # Load page images using the mapping
+#             image_paths = []
+#             for doc_id, pages in doc_page_mapping.items():
+#                 pdf_name = COMPANY_PDF_MAPPING[company][0]
+#                 image_map_file = f"{pdf_name}_images.json"
+#                 if os.path.exists(image_map_file):
+#                     with open(image_map_file, "r") as f:
+#                         image_map = json.load(f)
+#                         for page in pages:
+#                             path = image_map.get(page)
+#                             if path and os.path.exists(path):
+#                                 image_paths.append(Image.open(path))
+
+#             # Convert answer to speech using gTTS
+#             tts = gTTS(answer)
+#             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+#             tts.save(temp_file.name)
+
+#             return answer, temp_file.name, image_paths
+
+        
+#         submit_btn.click(
+#             fn=on_submit,
+#             inputs=[pdf_dropdown, query_input],
+#             outputs=[answer_output, speak_btn, citation_gallery]
+#         )
+
+    
+#     return demo
 
 def create_interface():
-    """Create Gradio interface for the PDF QA system."""
+    """Create Gradio interface for the PDF QA system with enhanced layout."""
     # Create list of PDF options for dropdown
     pdf_options = []
     for company, pdfs in COMPANY_PDF_MAPPING.items():
         for pdf in pdfs:
             pdf_options.append(f"{company.capitalize()}: {pdf}")
-    
+
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
-        with gr.Column():
-            # Header section
-            with gr.Column():
-                gr.Markdown('# Financial Reports QA')
-                gr.Markdown('Extract valuable information from financial reports with page references')
-            
-            # Warning message if Ollama is not available
-            if not ollama_available:
-                if is_windows:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Make sure Ollama is running by opening PowerShell and running: `ollama serve`\n'
-                        'And ensure the phi3:mini model is installed with: `ollama pull phi3:mini`'
-                    )
-                elif is_wsl:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Install Ollama in WSL using: `curl -fsSL https://ollama.com/install.sh | sh`\n'
-                        'Then start it with: `ollama serve`\n'
-                        'And pull the model: `ollama pull phi3:mini`'
-                    )
-                else:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Make sure to install Ollama, run it with the `ollama serve` command, '
-                        'and pull the phi3:mini model with `ollama pull phi3:mini`.'
-                    )
-                gr.Markdown(instructions)
-            
-            # Input card
-            with gr.Column():
-                gr.Markdown('### Select Report & Ask Question')
-                
-                with gr.Row(equal_height=True):
+        gr.Markdown("# 📊 Financial Reports QA\n**Extract valuable insights from SEC filings and annual reports**")
+
+        if not ollama_available:
+            gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
+
+        with gr.Row():  # Full row split in two halves
+            with gr.Column(scale=1, min_width=600):  # Left side
+                with gr.Column():
+                    gr.Markdown("### 📁 Select Report & Ask Your Question")
+
                     pdf_dropdown = gr.Dropdown(
-                        choices=pdf_options, 
-                        label="Financial Report",
+                        choices=pdf_options,
+                        label="Select Financial Report",
                         value=pdf_options[0] if pdf_options else None,
-                        container=True,
                         interactive=True
                     )
-                
-                query_input = gr.Textbox(
-                    lines=3, 
-                    label="Your Question",
-                    placeholder="Example: What were the total R&D expenses for 2022?",
-                    container=True
-                )
-                        
-                submit_btn = gr.Button(
-                    "Get Answer", 
-                    variant="primary",
-                    size="lg"
-                )
-            
-            # Answer card
-            with gr.Column():
-                gr.Markdown('### Response based on the selected report with page references')
-                answer_output = gr.Textbox(
-                    label="Answer", 
-                    lines=5,
-                    show_copy_button=True,
-                    container=True
-                )
-            
-            # Footer
-            gr.Markdown('Powered by Pinecone Vector Database and Phi-3 AI | **Financial Reports QA System** v1.0')
-            
-            # Handle submission
-            def on_submit(pdf_selection, query):
-                if not pdf_selection:
-                    return "Please select a financial report first."
-                    
-                company = pdf_selection.split(":")[0].lower()
-                answer = process_query_and_generate(company, query)
-                return answer
-            
-            submit_btn.click(
-                fn=on_submit,
-                inputs=[pdf_dropdown, query_input],
-                outputs=answer_output
-            )
-    
+
+                    query_input = gr.Textbox(
+                        lines=3,
+                        label="Your Question",
+                        placeholder="Example: What were the total R&D expenses for 2022?"
+                    )
+
+                    submit_btn = gr.Button("Get Answer", variant="primary")
+
+                with gr.Column():
+                    gr.Markdown("### 🧠 Answer from the AI")
+
+                    answer_output = gr.Textbox(
+                        label="Answer",
+                        lines=10,
+                        show_copy_button=True
+                    )
+
+                    speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
+
+            with gr.Column(scale=1, min_width=600):  # Right side
+                with gr.Column():
+                    gr.Markdown("### 📄 Pages Cited in Answer")
+
+                    citation_gallery = gr.Gallery(
+                        label="Source Pages",
+                        show_label=True,
+                        columns=1,
+                        height="600px"
+                    )
+
+        # Handle submission
+        def on_submit(pdf_selection, query):
+            if not pdf_selection:
+                return "Please select a financial report first.", None, []
+
+            company = pdf_selection.split(":")[0].lower()
+            answer, doc_page_mapping = process_query_and_generate(company, query)
+
+            # Load page images using the mapping
+            image_paths = []
+            for doc_id, pages in doc_page_mapping.items():
+                pdf_name = COMPANY_PDF_MAPPING[company][0]
+                image_map_file = f"{pdf_name}_images.json"
+                if os.path.exists(image_map_file):
+                    with open(image_map_file, "r") as f:
+                        image_map = json.load(f)
+                        for page in pages:
+                            path = image_map.get(page)
+                            if path and os.path.exists(path):
+                                image_paths.append(Image.open(path))
+
+            # Convert answer to speech using gTTS
+            tts = gTTS(answer)
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+            tts.save(temp_file.name)
+
+            return answer, temp_file.name, image_paths
+
+        submit_btn.click(
+            fn=on_submit,
+            inputs=[pdf_dropdown, query_input],
+            outputs=[answer_output, speak_btn, citation_gallery]
+        )
+
     return demo
+
 
 # Launch the Gradio app
 if __name__ == "__main__":
