@@ -9,7 +9,7 @@ import platform
 from collections import defaultdict
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
-from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, semantic_search, format_documents, process_query
+from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
 
 # Load environment variables
 load_dotenv()
@@ -65,12 +65,54 @@ def check_ollama_available():
 pc, index, embeddings_model = init_pinecone_and_embeddings()
 ollama_available = check_ollama_available()
 
-def generate_answer_with_ollama(context: str, query: str) -> str:
-    """Generate an answer using Ollama's Phi-3 model based on context and query."""
+def format_documents_with_page_info(results):
+    """
+    Format retrieved documents for inclusion in the context, 
+    including clear page number formatting for the LLM to recognize.
+    """
+    if not results.get("results"):
+        return "No relevant information found."
+    
+    formatted_text = ""
+    
+    # Extract the document-page mapping for reference
+    doc_page_mapping = results.get("doc_page_mapping", {})
+    
+    # Process results by document and page
+    for doc_id, pages in results.get("results", {}).items():
+        formatted_text += f"\n=== Document: {doc_id} ===\n"
+        
+        for page_num, matches in pages.items():
+            formatted_text += f"\n[Page {page_num}]\n"
+            
+            for match in matches:
+                content_type = "Table" if match.get("table_info") else "Text"
+                formatted_text += f"--- {content_type}{match.get('table_info', '')} (Relevance score: {match.get('score', 0):.2f}) ---\n"
+                formatted_text += match.get("text", "").strip() + "\n\n"
+    
+    return formatted_text
+
+def generate_answer_with_ollama(context: str, query: str, doc_page_mapping: Dict) -> str:
+    """Generate an answer using Ollama's Phi-3 model based on context and query,
+    with instructions to include page references."""
+    
+    # Format the doc-page mapping for inclusion in the prompt
+    page_references = ""
+    for doc_id, pages in doc_page_mapping.items():
+        page_references += f"- Document '{doc_id}' has relevant information on pages: {', '.join(pages)}\n"
+    
     prompt = f"""You are a helpful assistant that answers questions about financial reports and SEC filings.
 Answer the user's question based solely on the provided context.
-If you don't know the answer based on the context, just say so.
-Don't make up information and cite the relevant parts of the document when possible.
+
+IMPORTANT INSTRUCTIONS:
+1. Always cite the specific page numbers when referencing information in your answer.
+2. Format page citations as [Page X] within your answer text.
+3. If information comes from multiple pages, cite each relevant page.
+4. If you don't know the answer based on the context, just say so.
+5. Don't make up information.
+
+The following pages contain relevant information for this query:
+{page_references}
 
 Context:
 {context}
@@ -78,7 +120,7 @@ Context:
 User Question:
 {query}
 
-Answer:"""
+Answer (remember to cite specific page numbers in your response):"""
     
     # Make API call to Ollama
     try:
@@ -94,7 +136,7 @@ Answer:"""
                     "num_predict": 512
                 }
             },
-            timeout=120  # Increase timeout to 120 seconds
+            timeout=180  # Increase timeout to 180 seconds
         )
         
         if response.status_code == 200:
@@ -105,22 +147,28 @@ Answer:"""
         return f"Error connecting to Ollama: {str(e)}"
 
 def process_query_and_generate(company: str, query: str) -> str:
-    """Process a query for a specific company and generate answer."""
+    """Process a query for a specific company and generate answer with page references."""
     if not query.strip():
         return "Please enter a query."
     
     # Use the imported process_query function to get search results
     results = process_query(index, embeddings_model, company, query)
     
-    # Format retrieved documents using the imported function
-    context = format_documents(results)
+    # Format retrieved documents with clear page information
+    context = format_documents_with_page_info(results)
     
-    # Generate answer using Phi-3 via Ollama 
+    # Get document-page mapping for reference in the prompt
+    doc_page_mapping = results.get("doc_page_mapping", {})
+    
+    # Generate answer using Phi-3 via Ollama with instructions to include page references
     if "No relevant information found" in context:
         answer = "I couldn't find relevant information to answer your question in the selected document."
     else:
         try:
-            answer = generate_answer_with_ollama(context, query)
+            answer = generate_answer_with_ollama(context, query, doc_page_mapping)
+            
+            # Post-process answer to highlight page citations
+            answer = re.sub(r'\[Page (\d+)\]', r'**[Page \1]**', answer)
         except Exception as e:
             answer = f"Error: Unable to connect to Ollama. Please make sure Ollama is installed and running with the phi3:mini model."
     
@@ -134,180 +182,39 @@ def create_interface():
         for pdf in pdfs:
             pdf_options.append(f"{company.capitalize()}: {pdf}")
     
-    # Define custom CSS for a more modern and professional UI
-    css = """
-    :root {
-        --primary-color: #2c6fdb;
-        --primary-hover: #245bb9;
-        --text-color: #333333;
-        --light-text: #666666;
-        --bg-color: #f5f5f5;
-        --card-bg: #ffffff;
-        --border-color: #dddddd;
-        --radius: 3px;
-        --shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    
-    body {
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 16px;
-    }
-    
-    .container {
-        max-width: 1500px;
-        margin: auto;
-        padding: 1.5rem;
-    }
-    
-    .header {
-        text-align: center;
-        margin-bottom: 2rem;
-        padding-bottom: 1rem;
-        border-bottom: 1px solid var(--border-color);
-    }
-    
-    .title {
-        color: var(--text-color);
-        font-size: 2.2rem;
-        font-weight: normal;
-        margin-bottom: 0.75rem;
-        font-family: Arial, Helvetica, sans-serif;
-    }
-    
-    .subtitle {
-        color: var(--light-text);
-        font-size: 1.25rem;
-        font-weight: normal;
-        font-family: Arial, Helvetica, sans-serif;
-    }
-    
-    .card {
-        background-color: var(--card-bg);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow);
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-        border: 1px solid var(--border-color);
-        width: 90%;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    
-    /* Fix for dropdown and textbox width */
-    .input-box, .output-box {
-        width: 95% !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
-    }
-    
-    .section-title {
-        font-size: 1.25rem;
-        font-weight: normal;
-        margin-bottom: 1rem;
-        color: var(--text-color);
-    }
-    
-    .warning {
-        background-color: #fff7ed;
-        border-left: 3px solid #f97316;
-        color: #333333;
-        padding: 1rem;
-        margin-bottom: 1.5rem;
-        border-radius: 2px;
-        font-size: 1rem;
-    }
-    
-    .footer {
-        text-align: center;
-        margin-top: 2rem;
-        padding-top: 1rem;
-        color: var(--light-text);
-        font-size: 0.9rem;
-        border-top: 1px solid var(--border-color);
-    }
-    
-    /* Gradio component overrides */
-    .gradio-container {
-        max-width: 100% !important;
-    }
-    
-    /* Input field styling */
-    input, textarea, select {
-        font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 1.1rem !important;
-        width: 100% !important;
-        padding: 0.75rem !important;
-    }
-    
-    .answer-box {
-        border-left: 2px solid #cccccc;
-        background-color: #fafafa;
-        font-family: Arial, Helvetica, sans-serif !important;
-        font-size: 1.1rem !important;
-        width: 100% !important;
-        padding: 1rem !important;
-    }
-    
-    button.primary {
-        background-color: var(--primary-color) !important;
-        font-weight: normal !important;
-        font-family: Arial, Helvetica, sans-serif !important;
-        width: 60% !important;
-        margin: 0 auto !important;
-        display: block !important;
-        font-size: 1.2rem !important;
-        padding: 0.75rem 1.5rem !important;
-    }
-    
-    button.primary:hover {
-        background-color: var(--primary-hover) !important;
-    }
-    
-    /* Labels */
-    label span {
-        font-weight: normal !important;
-        font-size: 1.1rem !important;
-        font-family: Arial, Helvetica, sans-serif !important;
-        margin-bottom: 0.5rem !important;
-        display: inline-block !important;
-    }
-    """
-    
-    with gr.Blocks(css=css, theme=gr.themes.Soft()) as demo:
-        with gr.Column(elem_classes="container"):
+    with gr.Blocks(theme=gr.themes.Soft()) as demo:
+        with gr.Column():
             # Header section
-            with gr.Column(elem_classes="header"):
-                gr.HTML('<div class="title"> Financial Reports QA</div>')
-                gr.HTML('<div class="subtitle">Extract valuable information from financial reports</div>')
+            with gr.Column():
+                gr.Markdown('# Financial Reports QA')
+                gr.Markdown('Extract valuable information from financial reports with page references')
             
             # Warning message if Ollama is not available
             if not ollama_available:
                 if is_windows:
                     instructions = (
-                        '<div class="warning">⚠️ <strong>Warning:</strong> Ollama is not available. '
-                        'Make sure Ollama is running by opening PowerShell and running: <pre>ollama serve</pre>'
-                        'And ensure the phi3:mini model is installed with: <pre>ollama pull phi3:mini</pre></div>'
+                        '⚠️ **Warning:** Ollama is not available.\n'
+                        'Make sure Ollama is running by opening PowerShell and running: `ollama serve`\n'
+                        'And ensure the phi3:mini model is installed with: `ollama pull phi3:mini`'
                     )
                 elif is_wsl:
                     instructions = (
-                        '<div class="warning">⚠️ <strong>Warning:</strong> Ollama is not available. '
-                        'Install Ollama in WSL using: <pre>curl -fsSL https://ollama.com/install.sh | sh</pre>'
-                        'Then start it with: <pre>ollama serve</pre>'
-                        'And pull the model: <pre>ollama pull phi3:mini</pre></div>'
+                        '⚠️ **Warning:** Ollama is not available.\n'
+                        'Install Ollama in WSL using: `curl -fsSL https://ollama.com/install.sh | sh`\n'
+                        'Then start it with: `ollama serve`\n'
+                        'And pull the model: `ollama pull phi3:mini`'
                     )
                 else:
                     instructions = (
-                        '<div class="warning">⚠️ <strong>Warning:</strong> Ollama is not available. '
-                        'Make sure to install Ollama, run it with the "ollama serve" command, '
-                        'and pull the phi3:mini model with "ollama pull phi3:mini".</div>'
+                        '⚠️ **Warning:** Ollama is not available.\n'
+                        'Make sure to install Ollama, run it with the `ollama serve` command, '
+                        'and pull the phi3:mini model with `ollama pull phi3:mini`.'
                     )
-                gr.HTML(instructions)
+                gr.Markdown(instructions)
             
             # Input card
-            with gr.Column(elem_classes="card"):
-                gr.HTML('<div class="section-title">📁 Select Report & Ask Question</div>')
+            with gr.Column():
+                gr.Markdown('### Select Report & Ask Question')
                 
                 with gr.Row(equal_height=True):
                     pdf_dropdown = gr.Dropdown(
@@ -315,38 +222,34 @@ def create_interface():
                         label="Financial Report",
                         value=pdf_options[0] if pdf_options else None,
                         container=True,
-                        interactive=True,
-                        elem_classes="input-box"
+                        interactive=True
                     )
                 
                 query_input = gr.Textbox(
                     lines=3, 
                     label="Your Question",
                     placeholder="Example: What were the total R&D expenses for 2022?",
-                    container=True,
-                    elem_classes="input-box"
+                    container=True
                 )
                         
                 submit_btn = gr.Button(
                     "Get Answer", 
                     variant="primary",
-                    elem_classes="primary",
                     size="lg"
                 )
             
             # Answer card
-            with gr.Column(elem_classes="card"):
-                gr.HTML('<div class="section-title">Response based on the selected report</div>')
+            with gr.Column():
+                gr.Markdown('### Response based on the selected report with page references')
                 answer_output = gr.Textbox(
                     label="Answer", 
-                    lines=10,
+                    lines=5,
                     show_copy_button=True,
-                    container=True,
-                    elem_classes="answer-box output-box"
+                    container=True
                 )
             
             # Footer
-            gr.HTML('<div class="footer">Powered by Pinecone Vector Database and Phi-3 AI | <strong>Financial Reports QA System</strong> v1.0</div>')
+            gr.Markdown('Powered by Pinecone Vector Database and Phi-3 AI | **Financial Reports QA System** v1.0')
             
             # Handle submission
             def on_submit(pdf_selection, query):
