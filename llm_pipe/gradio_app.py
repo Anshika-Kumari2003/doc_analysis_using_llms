@@ -10,6 +10,9 @@ from collections import defaultdict
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
 from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
+# import YOUTUBE QA AGENT FILE
+from youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
+
 
 # Load environment variables
 load_dotenv()
@@ -175,97 +178,114 @@ def process_query_and_generate(company: str, query: str) -> str:
     return answer
 
 def create_interface():
-    """Create Gradio interface for the PDF QA system."""
-    # Create list of PDF options for dropdown
+    """Create unified Gradio interface with two tabs: Document QA + YouTube QA."""
+
+    # Prepare PDF options
     pdf_options = []
     for company, pdfs in COMPANY_PDF_MAPPING.items():
         for pdf in pdfs:
             pdf_options.append(f"{company.capitalize()}: {pdf}")
-    
+
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
-        with gr.Column():
-            # Header section
-            with gr.Column():
-                gr.Markdown('# Financial Reports QA')
-                gr.Markdown('Extract valuable information from financial reports with page references')
-            
-            # Warning message if Ollama is not available
-            if not ollama_available:
-                if is_windows:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Make sure Ollama is running by opening PowerShell and running: `ollama serve`\n'
-                        'And ensure the phi3:mini model is installed with: `ollama pull phi3:mini`'
+        with gr.Tabs():
+
+            # === Tab 1: Document QA System ===
+            with gr.Tab("📄 Document QA System"):
+                with gr.Column():
+                    gr.Markdown('# Financial Reports QA')
+                    gr.Markdown('Extract valuable information from financial reports with page references')
+
+                    if not ollama_available:
+                        if is_windows:
+                            instructions = (
+                                '⚠️ **Warning:** Ollama is not available.\n'
+                                'Make sure Ollama is running by opening PowerShell and running: `ollama serve`\n'
+                                'And ensure the phi3:mini model is installed with: `ollama pull phi3:mini`'
+                            )
+                        elif is_wsl:
+                            instructions = (
+                                '⚠️ **Warning:** Ollama is not available.\n'
+                                'Install Ollama in WSL using: `curl -fsSL https://ollama.com/install.sh | sh`\n'
+                                'Then start it with: `ollama serve`\n'
+                                'And pull the model: `ollama pull phi3:mini`'
+                            )
+                        else:
+                            instructions = (
+                                '⚠️ **Warning:** Ollama is not available.\n'
+                                'Make sure to install Ollama, run it with the `ollama serve` command, '
+                                'and pull the phi3:mini model with `ollama pull phi3:mini`.'
+                            )
+                        gr.Markdown(instructions)
+
+                    gr.Markdown('### Select Report & Ask Question')
+
+                    with gr.Row(equal_height=True):
+                        pdf_dropdown = gr.Dropdown(
+                            choices=pdf_options,
+                            label="Financial Report",
+                            value=pdf_options[0] if pdf_options else None,
+                            container=True,
+                            interactive=True
+                        )
+
+                    query_input = gr.Textbox(
+                        lines=3,
+                        label="Your Question",
+                        placeholder="Example: What were the total R&D expenses for 2022?",
+                        container=True
                     )
-                elif is_wsl:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Install Ollama in WSL using: `curl -fsSL https://ollama.com/install.sh | sh`\n'
-                        'Then start it with: `ollama serve`\n'
-                        'And pull the model: `ollama pull phi3:mini`'
+
+                    submit_btn = gr.Button("Get Answer", variant="primary", size="lg")
+
+                    gr.Markdown('### Response based on the selected report with page references')
+                    answer_output = gr.Textbox(
+                        label="Answer",
+                        lines=5,
+                        show_copy_button=True,
+                        container=True
                     )
-                else:
-                    instructions = (
-                        '⚠️ **Warning:** Ollama is not available.\n'
-                        'Make sure to install Ollama, run it with the `ollama serve` command, '
-                        'and pull the phi3:mini model with `ollama pull phi3:mini`.'
+
+                    gr.Markdown('Powered by Pinecone Vector Database and Phi-3 AI | **Financial Reports QA System** v1.0')
+
+                    def on_submit(pdf_selection, query):
+                        if not pdf_selection:
+                            return "Please select a financial report first."
+                        company = pdf_selection.split(":")[0].lower()
+                        return process_query_and_generate(company, query)
+
+                    submit_btn.click(
+                        fn=on_submit,
+                        inputs=[pdf_dropdown, query_input],
+                        outputs=answer_output
                     )
-                gr.Markdown(instructions)
-            
-            # Input card
-            with gr.Column():
-                gr.Markdown('### Select Report & Ask Question')
-                
-                with gr.Row(equal_height=True):
-                    pdf_dropdown = gr.Dropdown(
-                        choices=pdf_options, 
-                        label="Financial Report",
-                        value=pdf_options[0] if pdf_options else None,
-                        container=True,
-                        interactive=True
-                    )
-                
-                query_input = gr.Textbox(
-                    lines=3, 
-                    label="Your Question",
-                    placeholder="Example: What were the total R&D expenses for 2022?",
-                    container=True
-                )
-                        
-                submit_btn = gr.Button(
-                    "Get Answer", 
-                    variant="primary",
-                    size="lg"
-                )
-            
-            # Answer card
-            with gr.Column():
-                gr.Markdown('### Response based on the selected report with page references')
-                answer_output = gr.Textbox(
-                    label="Answer", 
-                    lines=5,
-                    show_copy_button=True,
-                    container=True
-                )
-            
-            # Footer
-            gr.Markdown('Powered by Pinecone Vector Database and Phi-3 AI | **Financial Reports QA System** v1.0')
-            
-            # Handle submission
-            def on_submit(pdf_selection, query):
-                if not pdf_selection:
-                    return "Please select a financial report first."
-                    
-                company = pdf_selection.split(":")[0].lower()
-                answer = process_query_and_generate(company, query)
-                return answer
-            
-            submit_btn.click(
-                fn=on_submit,
-                inputs=[pdf_dropdown, query_input],
-                outputs=answer_output
-            )
-    
+
+            # === Tab 2: YouTube QA Agent ===
+            with gr.Tab("🎥 YouTube QA Agent"):
+                gr.Markdown("## 🎥 YouTube QA Agent (Powered by Ollama)")
+
+                with gr.Row():
+                    url_input = gr.Textbox(label="YouTube URL")
+                    model_selector = gr.Dropdown(choices=["mistral", "llama3", "gemma"], label="Ollama Model", value="mistral")
+                    fetch_button = gr.Button("Fetch Transcript")
+
+                status_output = gr.Textbox(label="Status", interactive=False)
+                fetch_button.click(fn=handle_url_submit, inputs=[url_input], outputs=status_output)
+
+                gr.Markdown("### ❓ Ask Questions")
+                with gr.Row():
+                    question_input = gr.Textbox(label="Your Question")
+                    ask_button = gr.Button("Ask")
+                    answer_output = gr.Textbox(label="Answer", interactive=False)
+
+                ask_button.click(fn=answer_question, inputs=[question_input, url_input, model_selector], outputs=answer_output)
+
+                gr.Markdown("### 🧾 Summarize Video")
+                with gr.Row():
+                    summarize_button = gr.Button("Summarize")
+                    summary_output = gr.Textbox(label="Summary", interactive=False)
+
+                summarize_button.click(fn=summarize_transcript, inputs=[url_input, model_selector], outputs=summary_output)
+
     return demo
 
 # Launch the Gradio app

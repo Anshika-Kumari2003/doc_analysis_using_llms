@@ -91,32 +91,3 @@ def summarize_transcript(url, model):
     except Exception as e:
         return f"Error from Ollama: {e}"
 
-
-with gr.Blocks() as demo:
-    gr.Markdown("## 🎥 YouTube QA Agent (Powered by Ollama)")
-
-    with gr.Row():
-        url_input = gr.Textbox(label="YouTube URL")
-        model_selector = gr.Dropdown(choices=["mistral", "llama3", "gemma"], label="Ollama Model", value="mistral")
-        fetch_button = gr.Button("Fetch Transcript")
-
-    status_output = gr.Textbox(label="Status", interactive=False)
-    fetch_button.click(fn=handle_url_submit, inputs=url_input, outputs=status_output)
-
-    gr.Markdown("### ❓ Ask Questions")
-    with gr.Row():
-        question_input = gr.Textbox(label="Your Question")
-        ask_button = gr.Button("Ask")
-        answer_output = gr.Textbox(label="Answer", interactive=False)
-
-    ask_button.click(fn=answer_question, inputs=[question_input, url_input, model_selector], outputs=answer_output)
-
-    gr.Markdown("### 🧾 Summarize Video")
-    with gr.Row():
-        summarize_button = gr.Button("Summarize")
-        summary_output = gr.Textbox(label="Summary", interactive=False)
-
-    summarize_button.click(fn=summarize_transcript, inputs=[url_input, model_selector], outputs=summary_output)
-
-demo.launch()
-
