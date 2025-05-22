@@ -280,7 +280,7 @@ def create_interface():
 
                 with gr.Row():
                     url_input = gr.Textbox(label="YouTube URL")
-                    model_selector = gr.Dropdown(choices=["mistral", "llama3", "gemma"], label="Ollama Model", value="mistral")
+                    model_selector = gr.Dropdown(choices=["phi3:mini", "mistral", "llama3", "gemma"], label="Ollama Model", value="phi3:mini")
                     fetch_button = gr.Button("Fetch Transcript")
 
                 status_output = gr.Textbox(label="Status", interactive=False)

@@ -46,32 +46,48 @@ def handle_url_submit(url):
         return f"Transcript is being fetched in the background for video ID: {video_id}..."
     return "Transcript already cached. Ready for QA."
 
-# Send a prompt to Ollama
-def query_ollama(prompt, model="mistral"):
+# Send a prompt to Ollama using /generate endpoint (consistent with main app)
+def query_ollama(prompt, model="phi3:mini"):
     payload = {
         "model": model,
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        "stream": False
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "num_predict": 512
+        }
     }
-    response = requests.post("http://localhost:11434/api/chat", json=payload)
-    response.raise_for_status()
-    return response.json()["message"]["content"]
+    try:
+        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=120)
+        response.raise_for_status()
+        return response.json()["response"]
+    except requests.exceptions.RequestException as e:
+        return f"Error connecting to Ollama: {e}"
+    except KeyError:
+        return "Error: Unexpected response format from Ollama"
 
 # Answer a question
 def answer_question(question, url, model):
     video_id = extract_video_id(url)
     if video_id not in video_context:
-        return "Transcript not ready yet."
+        return "Transcript not ready yet. Please fetch transcript first."
     context = video_context[video_id]
     if context.startswith("Error"):
         return context
-    prompt = f"""Answer the following question based on this YouTube video transcript:\n
-    Transcript:\n{context[:4000]}\n
-    Question: {question}
-    """
+    
+    # Limit context to avoid token limits
+    context_limited = context[:4000] if len(context) > 4000 else context
+    
+    prompt = f"""Based on the following YouTube video transcript, please answer the question accurately and concisely.
+
+Transcript:
+{context_limited}
+
+Question: {question}
+
+Answer:"""
+    
     try:
         return query_ollama(prompt, model)
     except Exception as e:
@@ -81,13 +97,22 @@ def answer_question(question, url, model):
 def summarize_transcript(url, model):
     video_id = extract_video_id(url)
     if video_id not in video_context:
-        return "Transcript not ready."
+        return "Transcript not ready. Please fetch transcript first."
     context = video_context[video_id]
     if context.startswith("Error"):
         return context
-    prompt = f"""Summarize the following YouTube video transcript:\n\n{context[:4000]}"""
+    
+    # Limit context to avoid token limits
+    context_limited = context[:4000] if len(context) > 4000 else context
+    
+    prompt = f"""Please provide a comprehensive summary of the following YouTube video transcript. Include the main topics, key points, and important details discussed.
+
+Transcript:
+{context_limited}
+
+Summary:"""
+    
     try:
         return query_ollama(prompt, model)
     except Exception as e:
         return f"Error from Ollama: {e}"
-
