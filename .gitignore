@@ -1,5 +1,5 @@
 .env
-
+test.py
 /.luarc.json
 # Ignore the embedding model
 /llm_pipe/Ingestion_Retrieval/models/embedding_model

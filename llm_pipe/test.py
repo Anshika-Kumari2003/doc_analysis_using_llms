@@ -1,19 +1,15 @@
 import os
 import gradio as gr
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from dotenv import load_dotenv
+import re
 import requests
+import json
 import platform
+from collections import defaultdict
 from pinecone import Pinecone
 from sentence_transformers import SentenceTransformer
-from gradio import State
-from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import (
-    init_pinecone_and_embeddings,
-    semantic_search,
-    format_documents,
-    process_query,
-    get_pdf_citation_info
-)
+from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
 
 # Load environment variables
 load_dotenv()
@@ -21,17 +17,15 @@ load_dotenv()
 # Configuration
 PINECONE_API_KEY = os.getenv("api_key")
 INDEX_NAME = "document-analysis"
-EMBEDDING_MODEL = "all-mpnet-base-v2"
+MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+EMBEDDING_MODEL = "all-mpnet-base-v2"  # Embedding model
 
-# Ollama API configuration
 OLLAMA_API_BASE = "http://localhost:11434/api"
 OLLAMA_MODEL = "phi3:mini"
 
-# OS detection
 is_windows = platform.system() == "Windows"
 is_wsl = "microsoft" in platform.uname().release.lower() or "wsl" in platform.uname().release.lower()
 
-# Company to PDF mapping
 COMPANY_PDF_MAPPING = {
     "enersys": ["EnerSys-2023-10K.pdf", "EnerSys-2017-10K.pdf"],
     "amazon": ["Amazon10k2022.pdf"],
@@ -43,22 +37,49 @@ COMPANY_PDF_MAPPING = {
     "transdigm": ["TransDigm-2022-10K.pdf"]
 }
 
+pc, index, embeddings_model = init_pinecone_and_embeddings()
+
 def check_ollama_available():
     try:
         response = requests.get(f"{OLLAMA_API_BASE}/tags", timeout=5)
         if response.status_code == 200:
             models = response.json()
-            available_models = [model["name"] for model in models.get("models", [])]
-            return OLLAMA_MODEL in available_models
-        return False
+            return OLLAMA_MODEL in [model["name"] for model in models.get("models", [])]
     except:
-        return False
+        pass
+    return False
 
-def generate_answer_with_ollama(context: str, query: str) -> str:
+ollama_available = check_ollama_available()
+
+def format_documents_with_page_info(results):
+    formatted_text = ""
+    for doc_id, pages in results.get("results", {}).items():
+        formatted_text += f"\n=== Document: {doc_id} ===\n"
+        for page_num, matches in pages.items():
+            formatted_text += f"\n[Page {page_num}]\n"
+            for match in matches:
+                content_type = "Table" if match.get("table_info") else "Text"
+                formatted_text += f"--- {content_type}{match.get('table_info', '')} (Relevance score: {match.get('score', 0):.2f}) ---\n"
+                formatted_text += match.get("text", "").strip() + "\n\n"
+    return formatted_text or "No relevant information found."
+
+def generate_answer_with_ollama(context: str, query: str, doc_page_mapping: Dict) -> str:
+    page_references = ""
+    for doc_id, pages in doc_page_mapping.items():
+        page_references += f"- Document '{doc_id}' has relevant information on pages: {', '.join(pages)}\n"
+
     prompt = f"""You are a helpful assistant that answers questions about financial reports and SEC filings.
 Answer the user's question based solely on the provided context.
-If you don't know the answer based on the context, just say so.
-Don't make up information and cite the relevant parts of the document when possible.
+
+IMPORTANT INSTRUCTIONS:
+1. Always cite the specific page numbers when referencing information in your answer.
+2. Format page citations as [Page X] within your answer text.
+3. If information comes from multiple pages, cite each relevant page.
+4. If you don't know the answer based on the context, just say so.
+5. Don't make up information.
+
+The following pages contain relevant information for this query:
+{page_references}
 
 Context:
 {context}
@@ -66,224 +87,85 @@ Context:
 User Question:
 {query}
 
-Answer:"""
+Answer (remember to cite specific page numbers in your response):"""
 
     try:
         response = requests.post(
             f"{OLLAMA_API_BASE}/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "num_predict": 512
-                }
-            },
-            timeout=600
+            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
+            timeout=180
         )
-        if response.status_code == 200:
-            return response.json().get("response", "Error generating response.")
-        else:
-            return f"Error: Ollama returned status code {response.status_code}"
+        return response.json().get("response", "Error generating response.")
     except Exception as e:
         return f"Error connecting to Ollama: {str(e)}"
 
-# Initialize Pinecone and embedding models
-pc, index, embeddings_model = init_pinecone_and_embeddings()
-ollama_available = check_ollama_available()
+# def get_first_page_image(doc_page_mapping):
+#     if not doc_page_mapping:
+#         return None
+#     doc_id = list(doc_page_mapping.keys())[0]
+#     page_number = doc_page_mapping[doc_id][0]
+#     json_path = f"{doc_id}.pdf_images.json"
+#     if os.path.exists(json_path):
+#         with open(json_path, "r") as f:
+#             image_map = json.load(f)
+#             return image_map.get(str(page_number))
+#     return None
+
+def get_all_cited_images(doc_page_mapping):
+    images = []
+    for doc_id, pages in doc_page_mapping.items():
+        json_path = f"{doc_id}.pdf_images.json"
+        if os.path.exists(json_path):
+            with open(json_path, "r") as f:
+                image_map = json.load(f)
+                for page in pages:
+                    img = image_map.get(str(page))
+                    if img:
+                        images.append(img)
+    return images
 
 
-# def process_query_and_generate(company: str, query: str):
-#     if not query.strip():
-#         return "Please enter a query.", "", ""
-
-#     results = process_query(index, embeddings_model, company, query)
-#     context = format_documents(results)
-
-#     if "No relevant information found" in context:
-#         return "I couldn't find relevant information to answer your question in the selected document.", "", ""
-
-#     answer = generate_answer_with_ollama(context, query)
-#     citation = get_pdf_citation_info(results)
-
-#     return answer, citation, answer
 def process_query_and_generate(company: str, query: str):
-    try:
-        print(f"[INFO] Query received: {query}")
-        results = process_query(index, embeddings_model, company, query)
-        print(f"[INFO] Retrieval results: {results}")
-        
-        context = format_documents(results)
-        print(f"[INFO] Context after formatting:\n{context}")
-
-        if "No relevant information found" in context:
-            return "I couldn't find relevant information to answer your question in the selected document.", "", ""
-
-        answer = generate_answer_with_ollama(context, query)
-        print(f"[INFO] Generated answer: {answer}")
-
-        citation = get_pdf_citation_info(results)
-        print(f"[INFO] Citation info: {citation}")
-
-        return answer, citation, answer
-    except Exception as e:
-        print(f"[ERROR] Exception occurred: {str(e)}")
-        return f"Error: {str(e)}", f"Error: {str(e)}", f"Error: {str(e)}"
-
-
+    if not query.strip():
+        return "Please enter a query.", None
+    results = process_query(index, embeddings_model, company, query)
+    context = format_documents_with_page_info(results)
+    doc_page_mapping = results.get("doc_page_mapping", {})
+    if "No relevant information found" in context:
+        return "I couldn't find relevant information.", None
+    answer = generate_answer_with_ollama(context, query, doc_page_mapping)
+    answer = re.sub(r'\[Page (\d+)\]', r'**[Page \1]**', answer)
+    image_path = get_first_page_image(doc_page_mapping)
+    return answer, image_path
 
 def create_interface():
-    pdf_options = [f"{company.capitalize()}: {pdf}" for company, pdfs in COMPANY_PDF_MAPPING.items() for pdf in pdfs]
-
+    pdf_options = [f"{c.capitalize()}: {f}" for c, fs in COMPANY_PDF_MAPPING.items() for f in fs]
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
-        gr.Markdown("# 📊 Financial Reports QA\nExtract valuable insights from SEC filings and annual reports")
+        with gr.Column():
+            gr.Markdown('# Financial Reports QA')
+            gr.Markdown('Extract valuable information from financial reports with page references')
 
-        if not ollama_available:
-            gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
+            if not ollama_available:
+                gr.Markdown('⚠️ **Ollama not available. Make sure to run Ollama and pull phi3:mini model.**')
 
-        pdf_dropdown = gr.Dropdown(
-            choices=pdf_options,
-            label="Select Financial Report",
-            value=pdf_options[0] if pdf_options else None
-        )
-        query_input = gr.Textbox(
-            label="Your Question",
-            placeholder="Example: What were the R&D expenses in 2022?",
-            lines=3
-        )
-        submit_btn = gr.Button("Get Answer", variant="primary")
+            with gr.Row():
+                pdf_dropdown = gr.Dropdown(choices=pdf_options, label="Financial Report")
+                query_input = gr.Textbox(lines=3, label="Your Question")
+                submit_btn = gr.Button("Get Answer", variant="primary")
 
-        answer_output = gr.Textbox(label="Answer", lines=10, show_copy_button=True)
-        citation_output = gr.Textbox(label="Citation", visible=True)
-        audio_output = gr.Audio(label="Spoken Answer", visible=True, type="filepath")
-        
-        citation_popup_visible = State(False)
+            answer_output = gr.Textbox(label="Answer", lines=8, show_copy_button=True)
+            image_output = gr.Image(label="Cited Page Image")
 
+            def on_submit(pdf_selection, query):
+                if not pdf_selection:
+                    return "Please select a financial report.", None
+                company = pdf_selection.split(":")[0].lower()
+                return process_query_and_generate(company, query)
 
-        def toggle_citation_popup(citation, visible):
-            return (
-                gr.update(value=f"**Citation**\n\n{citation}", visible=not visible),
-                not visible
-            )
+            submit_btn.click(on_submit, inputs=[pdf_dropdown, query_input], outputs=[answer_output, image_output])
 
-
-        def on_submit(pdf_selection, query):
-            if not pdf_selection:
-                return "Please select a financial report first.", "", ""
-            company = pdf_selection.split(":")[0].lower()
-            return process_query_and_generate(company, query)
-
-        submit_btn.click(fn=on_submit, inputs=[pdf_dropdown, query_input], outputs=[answer_output, citation_output, audio_output])
-
-        with gr.Row():
-            speak_button = gr.Button("🔊 Speak")
-            citation_button = gr.Button("📄 Show Citation")
-            citation_markdown = gr.Markdown(visible=False)
-
-        def speak(text):
-            from gtts import gTTS
-            import tempfile
-            import os
-
-            tts = gTTS(text)
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-            tts.save(temp_file.name)
-            temp_file.close()
-            return temp_file.name  # Gradio will play this file if it's a valid path
-
-
-        speak_button.click(speak, inputs=[answer_output], outputs=audio_output)
-        # citation_button.click(
-        #     fn=lambda citation: gr.update(value=f"**Citation:**\n\n{citation}", visible=True),
-        #     inputs=[citation_output],
-        #     outputs=[citation_markdown],
-        #     show_progress=False
-        # )
-
-        citation_button.click(
-            fn=toggle_citation_popup,
-            inputs=[citation_output, citation_popup_visible],
-            outputs=[citation_markdown, citation_popup_visible],
-            show_progress=False
-        )
-
-        gr.Markdown("<div style='text-align:center; font-size:0.9em; color:gray;'>Powered by Pinecone and Ollama (Phi-3) | Financial QA v1.0</div>")
-
+            gr.Markdown('Powered by Pinecone + Phi-3 | **v1.0**')
     return demo
-# def create_interface():
-#     pdf_options = [f"{company.capitalize()}: {pdf}" for company, pdfs in COMPANY_PDF_MAPPING.items() for pdf in pdfs]
-
-#     with gr.Blocks(theme=gr.themes.Soft()) as demo:
-#         gr.Markdown("# 📊 Financial Reports QA\nExtract valuable insights from SEC filings and annual reports")
-
-#         if not ollama_available:
-#             gr.Markdown("⚠️ **Ollama is not available.** Ensure it is running and the Phi-3 model is pulled.")
-
-#         pdf_dropdown = gr.Dropdown(
-#             choices=pdf_options,
-#             label="Select Financial Report",
-#             value=pdf_options[0] if pdf_options else None
-#         )
-#         query_input = gr.Textbox(
-#             label="Your Question",
-#             placeholder="Example: What were the R&D expenses in 2022?",
-#             lines=3
-#         )
-#         submit_btn = gr.Button("Get Answer", variant="primary")
-
-#         answer_output = gr.Textbox(label="Answer", lines=10, show_copy_button=True)
-#         citation_output = gr.Textbox(label="Citation", visible=True)
-#         audio_output = gr.Audio(label="Spoken Answer", visible=True, type="filepath")
-        
-#         citation_popup_visible = State(False)
-
-#         with gr.Row():
-#             speak_button = gr.Button("🔊 Speak")
-#             citation_button = gr.Button("📄 Show Citation")
-#             citation_markdown = gr.Markdown(visible=False)
-
-#         def on_submit(pdf_selection, query):
-#             if not pdf_selection:
-#                 return "Please select a financial report first.", "", ""
-#             company = pdf_selection.split(":")[0].lower()
-#             return process_query_and_generate(company, query)
-
-#         submit_btn.click(
-#             fn=on_submit,
-#             inputs=[pdf_dropdown, query_input],
-#             outputs=[answer_output, citation_output, audio_output]
-#         )
-
-#         def speak(text):
-#             from gtts import gTTS
-#             import tempfile
-#             import os
-
-#             tts = gTTS(text)
-#             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-#             tts.save(temp_file.name)
-#             temp_file.close()
-#             return temp_file.name
-
-#         speak_button.click(
-#             fn=speak,
-#             inputs=[answer_output],
-#             outputs=[audio_output]
-#         )
-
-#         citation_button.click(
-#             fn=lambda citation: gr.update(value=f"**Citation:**\n\n{citation}", visible=True),
-#             inputs=[citation_output],
-#             outputs=[citation_markdown],
-#             show_progress=False
-#         )
-
-#         gr.Markdown("<div style='text-align:center; font-size:0.9em; color:gray;'>Powered by Pinecone and Ollama (Phi-3) | Financial QA v1.0</div>")
-
-#     return demo
-
 
 if __name__ == "__main__":
     demo = create_interface()

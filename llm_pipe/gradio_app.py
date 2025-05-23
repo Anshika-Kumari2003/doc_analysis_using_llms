@@ -96,7 +96,7 @@ def format_documents_with_page_info(results):
                 formatted_text += f"--- {content_type}{match.get('table_info', '')} (Relevance score: {match.get('score', 0):.2f}) ---\n"
                 formatted_text += match.get("text", "").strip() + "\n\n"
     
-    return formatted_text
+    return formatted_text or "No relevant information found."
 
 def generate_answer_with_ollama(context: str, query: str, doc_page_mapping: Dict) -> str:
     """Generate an answer using Ollama's Phi-3 model based on context and query,
@@ -142,7 +142,7 @@ Answer (remember to cite specific page numbers in your response):"""
                     "num_predict": 512
                 }
             },
-            timeout=600  # Increase timeout to 180 seconds
+            timeout=180  # Increase timeout to 180 seconds
         )
         
         if response.status_code == 200:
@@ -152,7 +152,27 @@ Answer (remember to cite specific page numbers in your response):"""
     except Exception as e:
         return f"Error connecting to Ollama: {str(e)}"
 
-def process_query_and_generate(company: str, query: str) -> str:
+#New
+JSON_DIR = os.path.join(os.path.dirname(__file__), "..", "jsons")
+def get_all_cited_images(doc_page_mapping):
+
+    images = []
+    for doc_id, pages in doc_page_mapping.items():
+        json_filename = f"{doc_id}_images.json"
+        json_path = os.path.join(JSON_DIR, json_filename)
+        if os.path.exists(json_path):
+            print(f"Loading JSON: {json_path}")
+            with open(json_path, "r") as f:
+                image_map = json.load(f)
+                for page in pages:
+                    img = image_map.get(str(page))
+                    if img:
+                        print(f"Found image path: {img}")    
+                        images.append(img)
+    return images
+
+# def process_query_and_generate(company: str, query: str) -> str:
+def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str, List[str]], List[str]]:
     """Process a query for a specific company and generate answer with page references."""
     if not query.strip():
         return "Please enter a query."
@@ -174,11 +194,16 @@ def process_query_and_generate(company: str, query: str) -> str:
             answer = generate_answer_with_ollama(context, query, doc_page_mapping)
             
             # Post-process answer to highlight page citations
-            answer = re.sub(r'\[Page (\d+)\]', r'**[Page \1]**', answer)
+            answer = re.sub(r'\[Page (\d+)\]', '', answer).strip()
         except Exception as e:
             answer = f"Error: Unable to connect to Ollama. Please make sure Ollama is installed and running with the phi3:mini model."
     
-    return answer, doc_page_mapping
+    image_paths = []
+    for path in get_all_cited_images(doc_page_mapping):
+        if os.path.exists(path):
+            image_paths.append(path)
+    return answer, doc_page_mapping, image_paths
+
 
 def create_interface():
     """Create unified Gradio interface with two tabs: Document QA + YouTube QA."""
@@ -226,6 +251,15 @@ def create_interface():
                                 lines=10,
                                 show_copy_button=True
                             )
+                            #test
+                            # speak_btn = gr.Button("🔊 Speak Answer")
+                            # audio_output = gr.Audio(visible=False, label="Audio")
+
+                            # def on_speak_click(answer):
+                            #     tts = gTTS(answer)
+                            #     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                            #     tts.save(temp_file.name)
+                            #     return temp_file.name, gr.update(visible=True)
 
                             speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
 
@@ -234,11 +268,14 @@ def create_interface():
                             gr.Markdown("### 📄 Pages Cited in Answer")
 
                             citation_gallery = gr.Gallery(
-                                label="Source Pages",
-                                show_label=True,
-                                columns=1,
-                                height="600px"
+                            label="Source Pages",
+                            show_label=True,
+                            columns=1,
+                            height="600px",
+                            object_fit="contain",
+                            preview=True
                             )
+
 
                 # Handle submission
                 def on_submit(pdf_selection, query):
@@ -246,33 +283,31 @@ def create_interface():
                         return "Please select a financial report first.", None, []
 
                     company = pdf_selection.split(":")[0].lower()
-                    answer, doc_page_mapping = process_query_and_generate(company, query)
+                    answer, doc_page_mapping, image_paths = process_query_and_generate(company, query)
 
-                    # Load page images using the mapping
-                    image_paths = []
-                    for doc_id, pages in doc_page_mapping.items():
-                        pdf_name = COMPANY_PDF_MAPPING[company][0]
-                        image_map_file = f"{pdf_name}_images.json"
-                        if os.path.exists(image_map_file):
-                            with open(image_map_file, "r") as f:
-                                image_map = json.load(f)
-                                for page in pages:
-                                    path = image_map.get(page)
-                                    if path and os.path.exists(path):
-                                        image_paths.append(Image.open(path))
+                    # Load all cited page images using the proper helper
+                    image_objects = []
+                    for path in image_paths:
+                        if os.path.exists(path):
+                            try:
+                                image_objects.append(Image.open(path))
+                            except Exception as e:
+                                print(f"Warning: Failed to open image {path}: {e}")
 
                     # Convert answer to speech using gTTS
                     tts = gTTS(answer)
                     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
                     tts.save(temp_file.name)
 
-                    return answer, temp_file.name, image_paths
+                    return answer, temp_file.name, image_objects
 
                 submit_btn.click(
                     fn=on_submit,
                     inputs=[pdf_dropdown, query_input],
                     outputs=[answer_output, speak_btn, citation_gallery]
                 )
+
+                # speak_btn.click(fn=on_speak_click, inputs=[answer_output], outputs=[audio_output])
 
             # === Tab 2: YouTube QA Agent ===
             with gr.Tab("🎥 YouTube QA Agent"):

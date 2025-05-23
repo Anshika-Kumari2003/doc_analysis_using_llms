@@ -152,18 +152,26 @@ def process_and_ingest_pdf(index, embeddings_model, pdf_path, namespace, chunk_s
     
     #New
     image_map = save_pdf_page_images(pdf_path)
-    json.dump(image_map, open(f"{pdf_path}_images.json", "w"))
+    JSON_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "jsons")
+    os.makedirs(JSON_DIR, exist_ok=True)
 
+    json_filename = os.path.basename(pdf_path).replace(".pdf", "_images.json")
+    json_path = os.path.join(JSON_DIR, json_filename)
+    with open(json_path, "w") as f:
+        json.dump(image_map, f)
 
-    # Use our custom PDF parser
-    extracted_content = parse_pdf(pdf_path)
-    
+    # # Use our custom PDF parser
+    # extracted_content = parse_pdf(pdf_path)
+
+    combined_text, page_text_map = parse_pdf(pdf_path)
+
     # Create a Document object to match expected format for process_documents
     document = Document(
-        page_content=extracted_content,
+        page_content=combined_text,
         metadata={"source": pdf_path}
     )
-    
+
+
     # Process the document through our updated chunking pipeline
     chunks = process_documents(
         [document],  # Pass as a list of documents
@@ -271,14 +279,17 @@ def ingest_all_documents():
     # Process each company and its PDFs
     for company, pdf_files in COMPANY_PDF_MAPPING.items():
         print(f"\nProcessing {company} documents...")
+        PDF_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "pdfs")
+
         for pdf_file in pdf_files:
+            pdf_path = os.path.join(PDF_DIR, pdf_file)
             process_and_ingest_pdf(
                 index=index,
                 embeddings_model=embeddings_model,
-                pdf_path=pdf_file,
+                pdf_path=pdf_path,
                 namespace=company
             )
-    
+
     # Get final stats
     get_index_stats(index)
     print("\nAll documents processed and ingested successfully!")
