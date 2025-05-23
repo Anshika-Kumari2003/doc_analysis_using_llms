@@ -194,7 +194,6 @@ def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str,
             answer = generate_answer_with_ollama(context, query, doc_page_mapping)
             
             # Post-process answer to highlight page citations
-            # answer = re.sub(r'\[Page (\d+)\]', '', answer).strip()
             answer = re.sub(r'\[Page \d+\]', '', answer).strip()
         except Exception as e:
             answer = f"Error: Unable to connect to Ollama. Please make sure Ollama is installed and running with the phi3:mini model."
