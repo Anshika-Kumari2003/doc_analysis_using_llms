@@ -251,36 +251,3 @@ def search_by_document_and_page(index, embeddings_model, company: str,
         })
     
     return results
-
-# Example usage
-# if __name__ == "__main__":
-#     # Initialize Pinecone and embedding model
-#     pc, index, embeddings_model = init_pinecone_and_embeddings()
-    
-#     # Example query
-#     company = "advent"
-#     query = "What are the company's financial risks?"
-    
-#     # Process the query
-#     result = process_query(index, embeddings_model, company, query)
-    
-#     # Print the formatted results
-#     print(result["formatted_text"])
-    
-#     # Print the document-to-page mapping
-#     print("\nDocument to Page Mapping:")
-#     for doc_id, pages in result["doc_page_mapping"].items():
-#         print(f"{doc_id}: Pages {', '.join(pages)}")
-    
-#     # Example of retrieving content from a specific document and page
-#     if result["doc_page_mapping"]:
-#         doc_id = list(result["doc_page_mapping"].keys())[0]
-#         page = result["doc_page_mapping"][doc_id][0]
-        
-#         print(f"\nRetrieving content from {doc_id}, page {page}:")
-#         page_content = search_by_document_and_page(
-#             index, embeddings_model, company, doc_id, page
-#         )
-        
-#         for content in page_content:
-#             print(f"- {content['content_type']}{content['table_info']}: {content['text'][:100]}...")

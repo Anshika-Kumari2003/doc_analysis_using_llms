@@ -194,7 +194,8 @@ def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str,
             answer = generate_answer_with_ollama(context, query, doc_page_mapping)
             
             # Post-process answer to highlight page citations
-            answer = re.sub(r'\[Page (\d+)\]', '', answer).strip()
+            # answer = re.sub(r'\[Page (\d+)\]', '', answer).strip()
+            answer = re.sub(r'\[Page \d+\]', '', answer).strip()
         except Exception as e:
             answer = f"Error: Unable to connect to Ollama. Please make sure Ollama is installed and running with the phi3:mini model."
     
@@ -251,15 +252,6 @@ def create_interface():
                                 lines=10,
                                 show_copy_button=True
                             )
-                            #test
-                            # speak_btn = gr.Button("🔊 Speak Answer")
-                            # audio_output = gr.Audio(visible=False, label="Audio")
-
-                            # def on_speak_click(answer):
-                            #     tts = gTTS(answer)
-                            #     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-                            #     tts.save(temp_file.name)
-                            #     return temp_file.name, gr.update(visible=True)
 
                             speak_btn = gr.Audio(label="Click Play to Hear", type="filepath")
 
@@ -306,8 +298,6 @@ def create_interface():
                     inputs=[pdf_dropdown, query_input],
                     outputs=[answer_output, speak_btn, citation_gallery]
                 )
-
-                # speak_btn.click(fn=on_speak_click, inputs=[answer_output], outputs=[audio_output])
 
             # === Tab 2: YouTube QA Agent ===
             with gr.Tab("🎥 YouTube QA Agent"):
