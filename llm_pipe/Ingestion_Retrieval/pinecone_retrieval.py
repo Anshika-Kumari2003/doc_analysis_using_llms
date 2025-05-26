@@ -177,9 +177,9 @@ def process_query(index, embeddings_model, company: str, query: str) -> Dict:
         embeddings_model=embeddings_model,
         query=query,
         namespace=company.lower(),
-        top_k=5,
-        score_threshold=0.4,
-        max_results=3
+        top_k=15,
+        score_threshold=0.35,
+        max_results=5
     )
     
     # Format the results for display
