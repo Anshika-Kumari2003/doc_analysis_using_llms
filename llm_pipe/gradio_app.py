@@ -443,7 +443,7 @@ def display_columns(csv_file):
         return f"❌ Error reading CSV file: {str(e)}", "No columns available"
 
 # Enhanced main processing function
-def process_query(csv_file, query, selected_model, use_ollama):
+def process_sql_query(csv_file, query, selected_model, use_ollama):
     if csv_file is None:
         return "Please upload a CSV file first.", "", pd.DataFrame()
     
@@ -669,7 +669,7 @@ def create_interface():
                 )
                 
                 submit_btn.click(
-                    fn=process_query,
+                    fn=process_sql_query,
                     inputs=[csv_file, query_input, model_dropdown, use_ollama],
                     outputs=[status_output, sql_output, result_output]
                 )
