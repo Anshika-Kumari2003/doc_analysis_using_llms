@@ -213,7 +213,7 @@ def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str,
 # Function to get available models from Ollama
 def get_available_models():
     try:
-        response = requests.get(f"{OLLAMA_API_BASE}/api/tags", timeout=5)
+        response = requests.get(f"{OLLAMA_API_BASE}/tags", timeout=5)  # Fixed: removed duplicate '/api'
         if response.status_code == 200:
             models = response.json()
             return [model['name'] for model in models.get('models', [])]
@@ -224,19 +224,25 @@ def get_available_models():
 # Function to find closest column match
 def find_closest_column(target_word, columns):
     """Find the closest matching column name using fuzzy matching"""
+    # Convert to lowercase for comparison
+    target_lower = target_word.lower()
+    columns_lower = [col.lower() for col in columns]
+    
     # Direct match first
-    if target_word in columns:
-        return target_word
+    if target_lower in columns_lower:
+        idx = columns_lower.index(target_lower)
+        return columns[idx]
     
     # Try partial matches
-    for col in columns:
-        if target_word in col.lower() or col.lower() in target_word:
-            return col
+    for i, col in enumerate(columns_lower):
+        if target_lower in col or col in target_lower:
+            return columns[i]
     
     # Use difflib for fuzzy matching
-    matches = get_close_matches(target_word, columns, n=1, cutoff=0.6)
+    matches = get_close_matches(target_lower, columns_lower, n=1, cutoff=0.6)
     if matches:
-        return matches[0]
+        idx = columns_lower.index(matches[0])
+        return columns[idx]
     
     return None
 
@@ -279,9 +285,9 @@ SQL Query:"""
         }
         
         response = requests.post(
-            f"{OLLAMA_API_BASE}/api/generate",
+            f"{OLLAMA_API_BASE}/generate",  # Fixed: removed duplicate '/api'
             json=payload,
-            timeout=60  # Increased timeout to 60 seconds
+            timeout=60
         )
         
         if response.status_code == 200:
@@ -384,10 +390,34 @@ def generate_sql_fallback(query, table_name, columns):
 def create_database_from_csv(csv_file_path):
     db_name = f"rag_database_{int(time.time())}.db"
     
-    df = pd.read_csv(csv_file_path)
+    try:
+        df = pd.read_csv(csv_file_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        # Try different encodings if utf-8 fails
+        for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+            try:
+                df = pd.read_csv(csv_file_path, encoding=encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            raise ValueError("Could not read CSV file with any supported encoding")
+    
     # Clean column names: remove special characters and convert to lowercase
     original_columns = df.columns.tolist()
     df.columns = [re.sub(r'[^\w]', '_', col).lower().strip('_') for col in df.columns]
+    
+    # Handle duplicate column names
+    seen_columns = {}
+    new_columns = []
+    for col in df.columns:
+        if col in seen_columns:
+            seen_columns[col] += 1
+            new_columns.append(f"{col}_{seen_columns[col]}")
+        else:
+            seen_columns[col] = 0
+            new_columns.append(col)
+    df.columns = new_columns
     
     conn = sqlite3.connect(db_name)
     table_name = "data"
@@ -422,8 +452,8 @@ def execute_sql_query(db_name, sql_query):
             column_match = re.search(r"no such column: (\w+)", error_msg)
             if column_match:
                 problematic_column = column_match.group(1)
-                return f"Error: Column '{problematic_column}' not found in the data. Please check the available columns and try again."
-        return f"Error executing SQL query: {error_msg}"
+                return pd.DataFrame([{"Error": f"Column '{problematic_column}' not found in the data. Please check the available columns and try again."}])
+        return pd.DataFrame([{"Error": f"Error executing SQL query: {error_msg}"}])
 
 # Function to display columns when file is uploaded
 def display_columns(csv_file):
@@ -431,11 +461,33 @@ def display_columns(csv_file):
         return "Please upload a CSV file first.", "No columns available"
     
     try:
-        df = pd.read_csv(csv_file.name)
+        # Try to read with different encodings
+        try:
+            df = pd.read_csv(csv_file.name, encoding='utf-8')
+        except UnicodeDecodeError:
+            for encoding in ['latin-1', 'cp1252', 'iso-8859-1']:
+                try:
+                    df = pd.read_csv(csv_file.name, encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                return "❌ Error: Could not read CSV file with any supported encoding", "No columns available"
+        
         cleaned_columns = [re.sub(r'[^\w]', '_', col).lower().strip('_') for col in df.columns]
         
-        preview = df.head(3).to_string()
-        column_info = f"Available columns ({len(cleaned_columns)}): {', '.join(cleaned_columns)}"
+        # Handle duplicate column names for display
+        seen_columns = {}
+        display_columns = []
+        for col in cleaned_columns:
+            if col in seen_columns:
+                seen_columns[col] += 1
+                display_columns.append(f"{col}_{seen_columns[col]}")
+            else:
+                seen_columns[col] = 0
+                display_columns.append(col)
+        
+        column_info = f"Available columns ({len(display_columns)}): {', '.join(display_columns)}"
         
         return f"✅ CSV uploaded: {len(df)} rows, {len(df.columns)} columns", column_info
         
@@ -443,7 +495,7 @@ def display_columns(csv_file):
         return f"❌ Error reading CSV file: {str(e)}", "No columns available"
 
 # Enhanced main processing function
-def process_sql_query(csv_file, query, selected_model, use_ollama):
+def process_query_sql(csv_file, query, selected_model, use_ollama):
     if csv_file is None:
         return "Please upload a CSV file first.", "", pd.DataFrame()
     
@@ -638,17 +690,17 @@ def create_interface():
                         refresh_btn = gr.Button("🔄 Refresh Models", size="sm")
                 
                 with gr.Row():
-                    query_input = gr.Textbox(
+                    sql_query_input = gr.Textbox(  # Renamed to avoid confusion
                         label="💬 Ask a question about your data",
                         placeholder="e.g., 'What is the average price?' or 'Show me the top 5 highest sales records'",
                         lines=2
                     )
                 
                 with gr.Row():
-                    submit_btn = gr.Button("🚀 Submit Query", variant="primary", size="lg")
+                    sql_submit_btn = gr.Button("🚀 Submit Query", variant="primary", size="lg")  # Renamed to avoid confusion
                 
                 with gr.Row():
-                    status_output = gr.Textbox(label="📈 Query Status", interactive=False)
+                    sql_status_output = gr.Textbox(label="📈 Query Status", interactive=False)  # Renamed to avoid confusion
                 
                 with gr.Row():
                     sql_output = gr.Textbox(label="💾 Generated SQL Query", lines=2, interactive=False)
@@ -668,10 +720,10 @@ def create_interface():
                     outputs=[model_dropdown]
                 )
                 
-                submit_btn.click(
-                    fn=process_sql_query,
-                    inputs=[csv_file, query_input, model_dropdown, use_ollama],
-                    outputs=[status_output, sql_output, result_output]
+                sql_submit_btn.click(  # Use the renamed button
+                    fn=process_query_sql,  # Use the SQL-specific function
+                    inputs=[csv_file, sql_query_input, model_dropdown, use_ollama],  # Use renamed input
+                    outputs=[sql_status_output, sql_output, result_output]  # Use renamed output
                 )
 
 
