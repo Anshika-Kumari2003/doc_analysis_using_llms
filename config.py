@@ -12,21 +12,12 @@ class BaseSettingsWrapper(BaseSettings):
         extra = "allow"
 
 class MongoConfig(BaseSettingsWrapper):
-    MONGODB_URI: str 
+    MONGODB_URI: Optional[str] = None  # <- makes it optional
     DB_NAME : str = "xerox_stage"
     COLLECTION :str = "Collection-NAme"
-
-class LLMConfig(BaseSettingsWrapper):
-    OPENAI_API_KEY : str
-    TIKTOKEN_MODEL : str 
-    TDGRAPH_EMBEDDING_MODEL : str 
-    MODEL: str = "gpt-4o-mini"
-    TEMPRATURE : int = 0
-    MODEL_0125 : str = "gpt-4o"
-    EMBD_MODEL_PATH : str
     
 class AppConfig(BaseSettingsWrapper):
-    PINECONE_API_KEY: str
+    PINECONE_API_KEY: str = "pcsk_6cytBM_NsN8VV1wkx38yhNQt93Z6nJjdySKwYNAKnzdSNZTRvn4V9SNjrrBndv4zjQhcpc"
     INDEX_NAME: str = "document-analysis"
     MODELS_DIR: str = os.path.join(os.path.dirname(__file__), "models")
     EMBEDDING_MODEL: str = "all-mpnet-base-v2"
@@ -44,5 +35,4 @@ class AppConfig(BaseSettingsWrapper):
     }
 
 mongo_uri =  MongoConfig()
-llm_config = LLMConfig()
 app_config = AppConfig()
