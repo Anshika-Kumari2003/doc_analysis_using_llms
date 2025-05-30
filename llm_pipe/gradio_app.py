@@ -20,36 +20,28 @@ import sqlite3
 from pathlib import Path
 import time
 from difflib import get_close_matches
-
+from config import app_config
 
 # Load environment variables
 load_dotenv()
 
 # Configuration
-PINECONE_API_KEY = os.getenv("api_key")
-INDEX_NAME = "document-analysis"
-MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-EMBEDDING_MODEL = "all-mpnet-base-v2"  # Embedding model
+PINECONE_API_KEY = app_config.PINECONE_API_KEY
+INDEX_NAME = app_config.INDEX_NAME
+MODELS_DIR = app_config.MODELS_DIR
+EMBEDDING_MODEL = app_config.EMBEDDING_MODEL
 
 # Configure Ollama API - use localhost as Ollama should be running locally
-OLLAMA_API_BASE = "http://localhost:11434/api"
-OLLAMA_MODEL = "phi3:mini"  # Ollama model name
+OLLAMA_API_BASE = app_config.OLLAMA_API_BASE
+OLLAMA_MODEL = app_config.OLLAMA_MODEL
 
 # Detect OS for better error messages
 is_windows = platform.system() == "Windows"
 is_wsl = "microsoft" in platform.uname().release.lower() or "wsl" in platform.uname().release.lower()
 
 # Company to PDF mapping - maps company names to their respective PDF files
-COMPANY_PDF_MAPPING = {
-    "enersys": ["EnerSys-2023-10K.pdf", "EnerSys-2017-10K.pdf"],
-    "amazon": ["Amazon10k2022.pdf"],
-    "apple": ["Apple_10-K-2021.pdf"],
-    "nvidia": ["Nvidia.pdf"],
-    "tesla": ["Tesla.pdf"],
-    "lockheed": ["Lockheed_martin_10k.pdf"],
-    "advent": ["Advent_Technologies_2022_10K.pdf"],
-    "transdigm": ["TransDigm-2022-10K.pdf"]
-}
+COMPANY_PDF_MAPPING = app_config.COMPANY_PDF_MAPPING
+
 
 def check_ollama_available():
     """Check if Ollama is available by sending a request to list models"""
