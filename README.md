@@ -1,4 +1,4 @@
-# Multi-Modal RAG System Documentation
+# Multi-Modal RAG System
 
 ## 🎯 System Overview
 
