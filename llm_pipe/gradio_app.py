@@ -10,6 +10,7 @@ import platform
 from PIL import Image
 from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
 from llm_pipe.Ingestion_Retrieval.youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
+from llm_pipe.multi_agent import invoke
 import pandas as pd
 import sqlite3
 import time
@@ -537,8 +538,91 @@ def create_interface():
 
     with gr.Blocks(theme=gr.themes.Soft()) as demo:
         with gr.Tabs():
+            # === Tab 1: Multi-Agent Assistant ===
+            with gr.Tab("🤖 Multi-Agent Assistant"):
+                gr.Markdown("#  Multi-Agent Assistant")
+                gr.Markdown("Ask questions about EnerSys, Apple, NVIDIA, search for YouTube videos, or get general information.")
+                
+                # Chat interface
+                chat_history = gr.Chatbot(
+                    label="Multi Agent Chatbot",
+                    height=350,
+                    show_label=True
+                )
 
-            # === Tab 1: Document QA System ===
+                # User input
+                with gr.Row():
+                    user_input = gr.Textbox(
+                        label="Your Question",
+                        placeholder="Ask about company financials, YouTube videos, or general information...",
+                        lines=2,
+                        scale=4
+                    )
+                    send_btn = gr.Button("Send", variant="primary", scale=1)
+
+                # Clear button
+                clear_btn = gr.Button("Clear Chat", variant="secondary")
+
+                # Intermediate steps display (collapsed by default)
+                with gr.Accordion("Agent's Thought Process", open=False):
+                    intermediate_steps_box = gr.Textbox(
+                        label="Routing & Debug Information",
+                        lines=3,
+                        interactive=False
+                    )
+
+                # Example questions
+                gr.Markdown("### Example Questions:")
+                gr.Markdown("""
+                **Company Specific:**
+                - "What was EnerSys' quarterly dividend in fiscal year 2023?"
+                - "What was the effective income tax rate in fiscal 2023 of EnerSys?"
+                - "Tell me about NVIDIA's AI business growth"
+                - "Apple's reportable segments consist of which countries?"
+                
+                **YouTube Videos:**
+                - "YouTube videos related to Apple"
+                - "Show me videos about NVIDIA graphics cards"
+                - "Find YouTube tutorials on financial analysis"
+                
+                **General Search:**
+                - "Search for recent news about electric vehicle batteries"
+                - "Current stock market trends"
+                - "Latest AI developments"
+                """)
+
+                # Connect the send button to the invoke function
+                def handle_send(message, history):
+                    if not message.strip():
+                        return history, ""
+                    return invoke(message, history)
+
+                send_btn.click(
+                    fn=handle_send,
+                    inputs=[user_input, chat_history],
+                    outputs=[chat_history, intermediate_steps_box]
+                ).then(
+                    lambda: "",  # Clear input after sending
+                    outputs=[user_input]
+                )
+
+                # Handle Enter key
+                user_input.submit(
+                    fn=handle_send,
+                    inputs=[user_input, chat_history],
+                    outputs=[chat_history, intermediate_steps_box]
+                ).then(
+                    lambda: "",  # Clear input after sending
+                    outputs=[user_input]
+                )
+
+                # Clear chat functionality
+                clear_btn.click(
+                    lambda: ([], ""),
+                    outputs=[chat_history, intermediate_steps_box]
+                )
+
+            # === Tab 2: Document QA System ===
             with gr.Tab("📄 Document QA System"):
                 gr.Markdown("# 📊 Financial Reports QA\n**Extract valuable insights from SEC filings and annual reports**")
 
@@ -620,7 +704,7 @@ def create_interface():
                     outputs=[answer_output, speak_btn, citation_gallery]
                 )
 
-            # === Tab 2: YouTube QA Agent ===
+            # === Tab 3: YouTube QA Agent ===
             with gr.Tab("🎥 YouTube QA Agent"):
                 gr.Markdown("## 🤖 YouTube QA Agent (Powered by Ollama)\nAsk questions and summarize any YouTube video using an LLM.")
 
@@ -671,7 +755,7 @@ def create_interface():
 
                 summarize_button.click(fn=summarize_transcript, inputs=[url_input, model_selector], outputs=summary_output)
 
-            # === Tab 3: SQL Agent Tab ===
+            # === Tab 4: SQL Agent Tab ===
             with gr.Tab("📄 SQL Agent Tab"):
                 gr.Markdown("# 🔍 Enhanced SQL RAG System with Ollama Integration")
                 gr.Markdown("Upload a CSV file and ask questions about your data in natural language. Enhanced with better error handling and column matching.")
