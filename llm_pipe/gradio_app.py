@@ -1,7 +1,6 @@
 import os
 import gradio as gr
 from typing import Dict, List, Tuple
-from dotenv import load_dotenv
 import re
 import requests
 from gtts import gTTS
@@ -9,47 +8,32 @@ import tempfile
 import json
 import platform
 from PIL import Image
-from collections import defaultdict
-from pinecone import Pinecone
-from sentence_transformers import SentenceTransformer
 from llm_pipe.Ingestion_Retrieval.pinecone_retrieval import init_pinecone_and_embeddings, process_query
-# import YOUTUBE QA AGENT FILE
 from llm_pipe.Ingestion_Retrieval.youtube_qa_agent import handle_url_submit, answer_question, summarize_transcript
 import pandas as pd
 import sqlite3
-from pathlib import Path
 import time
 from difflib import get_close_matches
+from config import app_config
 
-
-# Load environment variables
-load_dotenv()
 
 # Configuration
-PINECONE_API_KEY = os.getenv("api_key")
-INDEX_NAME = "document-analysis"
-MODELS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-EMBEDDING_MODEL = "all-mpnet-base-v2"  # Embedding model
+PINECONE_API_KEY = app_config.PINECONE_API_KEY
+INDEX_NAME = app_config.INDEX_NAME
+MODELS_DIR = app_config.MODELS_DIR
+EMBEDDING_MODEL = app_config.EMBEDDING_MODEL
 
 # Configure Ollama API - use localhost as Ollama should be running locally
-OLLAMA_API_BASE = "http://localhost:11434/api"
-OLLAMA_MODEL = "phi3:mini"  # Ollama model name
+OLLAMA_API_BASE = app_config.OLLAMA_API_BASE
+OLLAMA_MODEL = app_config.OLLAMA_MODEL
 
 # Detect OS for better error messages
 is_windows = platform.system() == "Windows"
 is_wsl = "microsoft" in platform.uname().release.lower() or "wsl" in platform.uname().release.lower()
 
 # Company to PDF mapping - maps company names to their respective PDF files
-COMPANY_PDF_MAPPING = {
-    "enersys": ["EnerSys-2023-10K.pdf", "EnerSys-2017-10K.pdf"],
-    "amazon": ["Amazon10k2022.pdf"],
-    "apple": ["Apple_10-K-2021.pdf"],
-    "nvidia": ["Nvidia.pdf"],
-    "tesla": ["Tesla.pdf"],
-    "lockheed": ["Lockheed_martin_10k.pdf"],
-    "advent": ["Advent_Technologies_2022_10K.pdf"],
-    "transdigm": ["TransDigm-2022-10K.pdf"]
-}
+COMPANY_PDF_MAPPING = app_config.COMPANY_PDF_MAPPING
+
 
 def check_ollama_available():
     """Check if Ollama is available by sending a request to list models"""
@@ -157,7 +141,7 @@ Answer (remember to cite specific page numbers in your response):"""
     except Exception as e:
         return f"Error connecting to Ollama: {str(e)}"
 
-#New
+# Function for citation
 JSON_DIR = os.path.join(os.path.dirname(__file__), "..", "jsons")
 def get_all_cited_images(doc_page_mapping):
 
@@ -176,7 +160,6 @@ def get_all_cited_images(doc_page_mapping):
                         images.append(img)
     return images
 
-# def process_query_and_generate(company: str, query: str) -> str:
 def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str, List[str]], List[str]]:
     """Process a query for a specific company and generate answer with page references."""
     if not query.strip():
@@ -209,7 +192,7 @@ def process_query_and_generate(company: str, query: str) -> Tuple[str, Dict[str,
             image_paths.append(path)
     return answer, doc_page_mapping, image_paths
 
-# NEW SQL CODE START FROM HERE
+# SQL CODE START FROM HERE
 # Function to get available models from Ollama
 def get_available_models():
     try:
@@ -543,7 +526,7 @@ def refresh_models():
         return gr.Dropdown(choices=["No models available"], value="No models available")
     return gr.Dropdown(choices=models, value=models[0] if models else "")
 
-
+# Gradio GUI
 def create_interface():
     """Create unified Gradio interface with two tabs: Document QA + YouTube QA."""
     # Create list of PDF options for dropdown
@@ -639,28 +622,52 @@ def create_interface():
 
             # === Tab 2: YouTube QA Agent ===
             with gr.Tab("🎥 YouTube QA Agent"):
-                gr.Markdown("## 🎥 YouTube QA Agent (Powered by Ollama)")
+                gr.Markdown("## 🤖 YouTube QA Agent (Powered by Ollama)\nAsk questions and summarize any YouTube video using an LLM.")
 
-                with gr.Row():
-                    url_input = gr.Textbox(label="YouTube URL")
-                    model_selector = gr.Dropdown(choices=["phi3:mini", "mistral", "llama3", "gemma"], label="Ollama Model", value="phi3:mini")
-                    fetch_button = gr.Button("Fetch Transcript")
+                # Section 1: URL & Model Selection
+                with gr.Group():
+                    gr.Markdown("### 🔗 Load YouTube Transcript")
 
-                status_output = gr.Textbox(label="Status", interactive=False)
+                    with gr.Row():
+                        with gr.Column(scale=4, min_width=400):
+                            url_input = gr.Textbox(label="📺 YouTube URL", placeholder="Paste a YouTube video link...", lines=2)
+                        with gr.Column(scale=2, min_width=400):
+                            model_selector = gr.Dropdown(
+                                choices=["phi3:mini", "mistral", "llama3", "gemma"],
+                                label="🧠 Ollama Model",
+                                value="phi3:mini",
+                                interactive=True
+                            )
+                            fetch_button = gr.Button("📥 Fetch Transcript", variant="primary")
+
+                    status_output = gr.Textbox(label="📡 Transcript Status", interactive=False, lines=2)
+
                 fetch_button.click(fn=handle_url_submit, inputs=[url_input], outputs=status_output)
 
-                gr.Markdown("### ❓ Ask Questions")
-                with gr.Row():
-                    question_input = gr.Textbox(label="Your Question")
-                    ask_button = gr.Button("Ask")
-                    answer_output = gr.Textbox(label="Answer", interactive=False)
+                gr.Markdown("---")
+
+                # Section 2: Ask Questions
+                with gr.Group():
+                    gr.Markdown("### ❓ Ask a Question About the Video")
+
+                    with gr.Column():
+                        question_input = gr.Textbox(label="💬 Your Question", placeholder="What is the video about?", lines=2)
+                        ask_button = gr.Button("🧠 Ask", variant="secondary", scale=1)
+
+                    answer_output = gr.Textbox(label="📝 Answer", lines=5, interactive=False)
 
                 ask_button.click(fn=answer_question, inputs=[question_input, url_input, model_selector], outputs=answer_output)
 
-                gr.Markdown("### 🧾 Summarize Video")
-                with gr.Row():
-                    summarize_button = gr.Button("Summarize")
-                    summary_output = gr.Textbox(label="Summary", interactive=False)
+                gr.Markdown("---")
+
+                # Section 3: Summarize
+                with gr.Group():
+                    gr.Markdown("### 📄 Summarize the Video")
+
+                    with gr.Row():
+                        summarize_button = gr.Button("📝 Summarize Video", variant="secondary")
+
+                    summary_output = gr.Textbox(label="🧾 Summary", lines=5, interactive=False)
 
                 summarize_button.click(fn=summarize_transcript, inputs=[url_input, model_selector], outputs=summary_output)
 
