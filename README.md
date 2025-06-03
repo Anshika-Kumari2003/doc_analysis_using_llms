@@ -1,4 +1,4 @@
-# Multi-Modal RAG System Documentation
+# Multi-Modal RAG System
 
 ## 🎯 System Overview
 
@@ -10,27 +10,13 @@ This is a comprehensive Multi-Modal Retrieval-Augmented Generation (RAG) system 
 - **SQL Agent**: Upload CSV files and query data using natural language
 - **Multi-modal Output**: Text responses with visual citations and audio playback
 
+
 ## 🏗️ Architecture
 
 The system follows a modular architecture with three main components:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Gradio Web Interface                     │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│   Document QA   │   YouTube QA    │        SQL Agent        │
-│     Module      │     Module      │         Module          │
-├─────────────────┼─────────────────┼─────────────────────────┤
-│                 │                 │                         │
-│    Pinecone     │   YouTube API   │         SQLite          │
-│    Vector DB    │   Transcript    │        Database         │
-│                 │   Processing    │                         │
-├─────────────────────────────────────────────────────────────┤
-│        Sentence Transformers (Embeddings)                   │
-├─────────────────────────────────────────────────────────────┤
-│              Ollama (Local LLM Processing)                  │
-└─────────────────────────────────────────────────────────────┘
-```
+<img src="Flow diagram/Architecture.png" alt="Architecture">
+
 
 ## 🔧 Core Components
 
@@ -54,6 +40,7 @@ The system follows a modular architecture with three main components:
 - **Real-time Processing**: Async handling of queries and responses
 - **Visual Feedback**: Progress indicators and status messages
 
+
 ## ✨ Features
 
 ### Document QA System
@@ -75,6 +62,7 @@ The system follows a modular architecture with three main components:
 - 🔧 **Column Matching**: Fuzzy matching for column name recognition
 - 📈 **Result Visualization**: Display query results in tabular format
 
+
 ## 🔄 System Workflow
 
 ### Document QA Workflow
@@ -93,6 +81,7 @@ YouTube URL → Extract Transcript → Store Locally → Process with Ollama →
 ```
 CSV Upload → Create SQLite DB → Natural Language Query → Generate SQL → Execute → Return Results
 ```
+
 
 ## 🛠️ Installation & Setup
 
@@ -124,6 +113,7 @@ pip install python-dotenv
 pip install Pillow
 ```
 
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -147,6 +137,7 @@ COMPANY_PDF_MAPPING = {
 }
 ```
 
+
 ## 📖 Usage Guide
 
 ### Document QA System
@@ -167,6 +158,7 @@ COMPANY_PDF_MAPPING = {
 3. **Natural Query**: Ask questions in plain English
 4. **View Results**: Examine generated SQL and results
 
+
 ## 🔌 API Endpoints
 
 ### Ollama Integration
@@ -179,23 +171,39 @@ COMPANY_PDF_MAPPING = {
 - `handle_url_submit()` - YouTube transcript extraction
 - `process_query_sql()` - CSV query processing
 
+
 ## 📁 File Structure
 
 ```
-project_root/
-├── main.py                          # Main application file
-├── config.py                        # Configuration settings
-├── requirements.txt                  # Python dependencies
-├── .env                             # Environment variables
+passion-project-doc-analysis-using-llms-25-bhupender-a/
+├── .gradio/
+├── jsons/
 ├── llm_pipe/
-│   └── Ingestion_Retrieval/
-│       ├── pinecone_retrieval.py    # Vector database operations
-│       └── youtube_qa_agent.py      # YouTube processing
-├── jsons/                           # JSON metadata storage
-│   └── *_images.json               # Page image mappings
-├── models/                          # Local model storage
-└── temp/                           # Temporary file storage
+│   ├── Ingestion_Retrieval/
+│   │   ├── __init__.py
+│   │   ├── document_chunker.py
+│   │   ├── pdf_parser.py
+│   │   ├── pinecone_integration.py
+│   │   └── pinecone_retrieval.py
+│   ├── gradio_app.py
+│   ├── main.py
+│   └── youtube_qa_agent.py
+├── page_images/
+├── pdfs/
+├── reports/
+├── .DS_Store
+├── .env
+├── .gitignore
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── config.py
+├── docker-compose.yml
+├── full-requirements.txt
+├── requirements.txt
+└── vertex_key.json
 ```
+
 
 ## 📦 Dependencies
 
@@ -216,6 +224,7 @@ project_root/
 - **Pillow**: Image processing
 - **gtts**: Text-to-speech conversion
 - **sqlite3**: Database operations
+
 
 ## 🐛 Troubleshooting
 
@@ -288,6 +297,7 @@ def system_health_check():
 - Model loading times
 - Vector similarity scores
 - Database query performance
+
 
 ## 🚀 Future Enhancements
 
