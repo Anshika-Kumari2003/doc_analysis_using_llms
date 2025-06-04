@@ -15,7 +15,7 @@ This is a comprehensive Multi-Modal Retrieval-Augmented Generation (RAG) system 
 
 The system follows a modular architecture with three main components:
 
-<img src="Flow diagram/Architecture.png" alt="Architecture">
+<img src="Flow diagram/rag_system_flowchart.svg" alt="Architecture">
 
 
 ## 🔧 Core Components
