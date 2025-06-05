@@ -2,68 +2,112 @@
 
 ## 🎯 System Overview
 
-This is a comprehensive Multi-Modal Retrieval-Augmented Generation (RAG) system that combines document question-answering, YouTube video analysis, and CSV data querying capabilities. The system leverages open-source models and provides an intuitive web interface for users to interact with various data sources.
+This is a comprehensive Multi-Modal Retrieval-Augmented Generation (RAG) system that combines multi-agent conversations, document question-answering, YouTube video analysis, and CSV data querying capabilities. The system leverages open-source models via Ollama and provides an intuitive web interface built with Gradio for users to interact with various data sources.
 
-### Key Capabilities
-- **Document QA**: Process PDF files (SEC filings, financial reports) and answer questions with page citations
-- **YouTube Analysis**: Extract transcripts from YouTube videos and provide Q&A functionality
-- **SQL Agent**: Upload CSV files and query data using natural language
-- **Multi-modal Output**: Text responses with visual citations and audio playback
+### 🌟 Key Capabilities
 
+#### 🤖 Multi-Agent Assistant
+- **Intelligent Routing**: Automatically routes queries to appropriate specialized agents
+- **Document QA**: Extract insights from financial reports and SEC filings (EnerSys, Apple, NVIDIA)
+- **YouTube Integration**: Search and analyze YouTube video content with transcript extraction
+- **General Search**: Web search capabilities for current information
+- **Conversational Interface**: Chat-based interaction with memory and thought process visualization
+
+#### 📄 Document QA System
+- **Financial Report Analysis**: Process SEC filings and annual reports with company-specific document mapping
+- **Semantic Search**: Vector-based document retrieval using Pinecone
+- **Page Citation**: Automatic page number references in answers with visual citations
+- **Gallery Display**: Show relevant document pages as images in an organized gallery
+- **Text-to-Speech**: Convert answers to audio using Google Text-to-Speech (gTTS)
+- **Ollama Integration**: Uses Phi-3 mini model for answer generation with fallback mechanisms
+
+#### 🎥 YouTube QA Agent
+- **Transcript Extraction**: Automatic transcript retrieval from YouTube videos
+- **Video Summarization**: AI-powered video content summarization using multiple Ollama models
+- **Question Answering**: Ask specific questions about video content
+- **Multiple Models**: Support for phi3:mini, mistral, llama3, gemma models
+- **Model Selection**: Dynamic model selection for different use cases
+
+#### 📊 SQL Agent
+- **Natural Language to SQL**: Convert plain English queries to SQL using Ollama or rule-based fallback
+- **CSV Processing**: Upload and analyze CSV files with automatic schema detection
+- **Smart Column Matching**: Fuzzy matching for column names with enhanced error handling
+- **Multiple Encodings**: Support for various CSV encodings (utf-8, latin-1, cp1252, iso-8859-1)
+- **Query Validation**: Robust error handling with informative error messages
+- **Model Integration**: Configurable Ollama model selection with availability checking
 
 ## 🏗️ Architecture
 
-The system follows a modular architecture with three main components:
+The system follows a modular architecture with four main components accessible through a unified Gradio interface:
 
-<img src="Flow diagram/Architecture.png" alt="Architecture">
+<img src="Flow diagram/RAG_SYSTEM.png" alt="Architecture">
 
 
 ## 🔧 Core Components
 
 ### 1. Vector Database Integration
 - **Pinecone**: Primary vector database for document embeddings
-- **Sentence Transformers**: Generate embeddings for text chunks
-- **Retrieval System**: Semantic search with relevance scoring
+- **Sentence Transformers**: Generate embeddings using all-MiniLM-L6-v2 model
+- **Document Mapping**: Company-specific PDF mapping (EnerSys, Apple, NVIDIA)
+- **Retrieval System**: Semantic search with relevance scoring and page citations
+- **Image Citations**: JSON-based image mapping for visual page references
 
 ### 2. Language Model Integration
-- **Ollama**: Local LLM server (primarily Phi-3 mini model)
+- **Ollama**: Local LLM server with multiple model support
+  - Primary: `phi3:mini` for fast responses
+  - Alternative: `mistral`, `llama3`, `gemma` for specialized tasks
+- **Health Checking**: Automatic Ollama availability detection
 - **Fallback Mechanisms**: Rule-based responses when LLM is unavailable
-- **Model Management**: Dynamic model selection and availability checking
+- **Model Management**: Dynamic model selection and refresh capabilities
+- **Timeout Handling**: Graceful handling of slow responses (180s timeout)
 
 ### 3. Data Processing Pipeline
-- **PDF Processing**: Extract text and images with page mapping
-- **CSV Processing**: Automatic schema detection and SQL generation
-- **YouTube Processing**: Transcript extraction and analysis
+- **PDF Processing**: Extract text with page mapping and image citations
+- **CSV Processing**: Multi-encoding support with automatic schema detection
+- **YouTube Processing**: Transcript extraction using youtube-transcript-api
+- **Column Matching**: Fuzzy string matching for SQL query generation
 
-### 4. Web Interface
-- **Gradio Framework**: Multi-tab interface for different functionalities
-- **Real-time Processing**: Async handling of queries and responses
-- **Visual Feedback**: Progress indicators and status messages
-
+### 4. Web Interface (Gradio)
+- **Multi-Tab Interface**: Four specialized tabs for different functionalities
+- **Real-time Processing**: Async handling with progress indicators
+- **Interactive Elements**: Dropdowns, file uploads, model selection
+- **Visual Feedback**: Status messages, error handling, and debug information
 
 ## ✨ Features
 
-### Document QA System
-- 📄 **PDF Processing**: Support for financial reports and SEC filings
-- 🔍 **Semantic Search**: Find relevant information across documents
-- 📊 **Page Citations**: Automatic page number referencing in answers
-- 🖼️ **Visual Citations**: Display source pages as images
-- 🔊 **Audio Output**: Text-to-speech for accessibility
+### 🤖 Multi-Agent Assistant
+- **Conversational Interface**: Chat-based interaction with message history
+- **Intelligent Routing**: Automatic query classification and agent selection
+- **Debug Visibility**: Thought process and routing information display
+- **Example Queries**: Pre-defined examples for different query types
 
-### YouTube QA Agent
-- 🎥 **Video Analysis**: Extract and process YouTube video transcripts
-- 💬 **Interactive Q&A**: Ask questions about video content
-- 📝 **Summarization**: Generate concise video summaries
-- 🔄 **Model Selection**: Choose from multiple Ollama models
+### 📄 Document QA System
+- **Company Selection**: Dropdown for EnerSys, Apple, NVIDIA documents
+- **Answer Generation**: Context-aware responses with page citations
+- **Visual Citations**: Gallery display of referenced document pages
+- **Audio Output**: Text-to-speech functionality for accessibility
+- **Page Reference**: Automatic [Page X] citations in responses
 
-### SQL Agent
-- 📊 **CSV Upload**: Process CSV files with automatic schema detection
-- 🧠 **Natural Language to SQL**: Convert questions to SQL queries
-- 🔧 **Column Matching**: Fuzzy matching for column name recognition
-- 📈 **Result Visualization**: Display query results in tabular format
+### 🎥 YouTube QA Agent
+- **URL Processing**: Direct YouTube URL input with transcript fetching
+- **Model Selection**: Choose between phi3:mini, mistral, llama3, gemma
+- **Question Answering**: Interactive Q&A about video content
+- **Video Summarization**: One-click video summary generation
+- **Status Tracking**: Real-time status updates for transcript processing
 
+### 📊 SQL Agent
+- **File Upload**: Drag-and-drop CSV file support
+- **Column Display**: Automatic column listing with data type information
+- **Query Generation**: Natural language to SQL conversion
+- **Model Toggle**: Enable/disable Ollama integration with fallback
+- **Result Display**: Tabular result presentation with error handling
 
 ## 🔄 System Workflow
+
+### 1. Multi-Agent Assistant Workflow
+```
+User Query → Query Analysis → Route to Appropriate Agent → Execute → Unified Response
+```
 
 ### Document QA Workflow
 ```
@@ -82,45 +126,48 @@ YouTube URL → Extract Transcript → Store Locally → Process with Ollama →
 CSV Upload → Create SQLite DB → Natural Language Query → Generate SQL → Execute → Return Results
 ```
 
-
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
 - Python 3.8+
-- Ollama installed and running locally
+- Ollama installed and running locally on port 11434
 - Pinecone account and API key
 
-### Required Models
+### Required Ollama Models
 ```bash
-# Install Ollama models
-ollama pull phi3:mini
-ollama pull mistral
-ollama pull llama3
-ollama pull gemma
+# Install recommended models
+ollama pull phi3:mini      # Primary model (fast, efficient)
+ollama pull mistral        # Alternative model
+ollama pull llama3         # Advanced model
+ollama pull gemma          # Google's model
 ```
 
 ### Python Dependencies
 ```bash
-pip install gradio
+# Core dependencies
+pip install gradio>=4.0.0
 pip install pinecone-client
 pip install sentence-transformers
 pip install pandas
-pip install sqlite3
-pip install gtts
-pip install youtube-transcript-api
 pip install requests
 pip install python-dotenv
 pip install Pillow
-```
 
+# Audio and video processing
+pip install gtts
+pip install youtube-transcript-api
+
+# Optional dependencies
+pip install sqlite3  # Usually included with Python
+```
 
 ## ⚙️ Configuration
 
 ### Environment Variables
-Create a `.env` file with:
+Create a `.env` file in the project root:
 ```env
-PINECONE_API_KEY=your_pinecone_api_key
-INDEX_NAME=your_index_name
+PINECONE_API_KEY=your_pinecone_api_key_here
+INDEX_NAME=your_pinecone_index_name
 MODELS_DIR=./models
 EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
 OLLAMA_API_BASE=http://localhost:11434
@@ -131,117 +178,97 @@ OLLAMA_MODEL=phi3:mini
 Configure document mapping in `config.py`:
 ```python
 COMPANY_PDF_MAPPING = {
+    "enersys": ["enersys_10k_2023.pdf", "enersys_annual_report.pdf"],
     "apple": ["apple_10k_2023.pdf", "apple_annual_report.pdf"],
-    "microsoft": ["msft_earnings.pdf"],
+    "nvidia": ["nvidia_10k_2023.pdf", "nvidia_earnings.pdf"],
     # Add more mappings as needed
 }
 ```
 
+### Directory Structure
+```
+project_root/
+├── llm_pipe/
+│   ├── Ingestion_Retrieval/
+│   │   ├── pinecone_retrieval.py
+│   │   └── youtube_qa_agent.py
+│   ├── gradio_app.py
+│   └── multi_agent.py
+├── jsons/                 # Image citation mappings
+├── pdfs/                  # Company PDF documents
+├── page_images/           # Extracted page images
+├── .env                   # Environment configuration
+├── config.py              # Application configuration
+└── requirements.txt
+```
 
 ## 📖 Usage Guide
 
-### Document QA System
-1. **Select Document**: Choose from available financial reports
-2. **Enter Query**: Ask specific questions about the document
-3. **Get Results**: Receive answers with page citations and visual references
-4. **Audio Playback**: Listen to the generated response
+### 🤖 Multi-Agent Assistant
+1. **Ask Questions**: Type questions about companies, YouTube content, or general topics
+2. **View Routing**: Check the "Agent's Thought Process" accordion for debug info
+3. **Clear Chat**: Use the clear button to reset conversation history
+4. **Example Queries**: Use provided examples as templates
 
-### YouTube QA Agent
+### 📄 Document QA System
+1. **Select Company**: Choose from EnerSys, Apple, or NVIDIA documents
+2. **Enter Query**: Ask specific questions about financial data or business operations
+3. **View Results**: Get AI-generated answers with page citations
+4. **Visual Citations**: Review source pages in the gallery
+5. **Audio Playback**: Listen to the generated response
+
+### 🎥 YouTube QA Agent
 1. **Enter URL**: Paste YouTube video URL
-2. **Fetch Transcript**: Extract video transcript
-3. **Ask Questions**: Query about video content
-4. **Summarize**: Generate video summary
+2. **Select Model**: Choose appropriate Ollama model for your use case
+3. **Fetch Transcript**: Extract video transcript
+4. **Ask Questions**: Query specific aspects of the video content
+5. **Summarize**: Generate concise video summaries
 
-### SQL Agent
-1. **Upload CSV**: Select and upload CSV file
-2. **View Schema**: Review available columns
-3. **Natural Query**: Ask questions in plain English
-4. **View Results**: Examine generated SQL and results
+### 📊 SQL Agent
+1. **Upload CSV**: Select CSV file (supports multiple encodings)
+2. **Review Columns**: Check available columns and data types
+3. **Configure Model**: Enable/disable Ollama integration
+4. **Natural Query**: Ask questions in plain English
+5. **View Results**: Examine generated SQL and query results
 
+## 🔌 API Integration
 
-## 🔌 API Endpoints
+### Ollama API Endpoints
+- **Health Check**: `GET http://localhost:11434/tags`
+- **Generate**: `POST http://localhost:11434/generate`
+- **Model List**: `GET http://localhost:11434/tags`
 
-### Ollama Integration
-- **Health Check**: `GET /api/tags` - Check available models
-- **Generate**: `POST /api/generate` - Generate text responses
-- **Models**: `GET /api/tags` - List available models
+### Key Functions
+```python
+# Document QA
+process_query_and_generate(company, query)
 
-### Internal Functions
-- `process_query_and_generate()` - Main document QA processing
-- `handle_url_submit()` - YouTube transcript extraction
-- `process_query_sql()` - CSV query processing
+# YouTube processing
+handle_url_submit(url)
+answer_question(question, url, model)
+summarize_transcript(url, model)
 
+# SQL processing
+process_query_sql(csv_file, query, model, use_ollama)
 
-## 📁 File Structure
-
+# Multi-agent routing
+invoke(message, history)
 ```
-passion-project-doc-analysis-using-llms-25-bhupender-a/
-├── .gradio/
-├── jsons/
-├── llm_pipe/
-│   ├── Ingestion_Retrieval/
-│   │   ├── __init__.py
-│   │   ├── document_chunker.py
-│   │   ├── pdf_parser.py
-│   │   ├── pinecone_integration.py
-│   │   └── pinecone_retrieval.py
-│   ├── gradio_app.py
-│   ├── main.py
-│   └── youtube_qa_agent.py
-├── page_images/
-├── pdfs/
-├── reports/
-├── .DS_Store
-├── .env
-├── .gitignore
-├── Dockerfile
-├── LICENSE
-├── README.md
-├── config.py
-├── docker-compose.yml
-├── full-requirements.txt
-├── requirements.txt
-└── vertex_key.json
-```
-
-
-## 📦 Dependencies
-
-### Core Libraries
-- **gradio**: Web interface framework
-- **pinecone-client**: Vector database operations
-- **sentence-transformers**: Text embeddings
-- **pandas**: Data manipulation
-- **requests**: HTTP client for API calls
-
-### AI/ML Libraries
-- **transformers**: Hugging Face transformers
-- **torch**: PyTorch for model operations
-- **numpy**: Numerical computations
-
-### Utility Libraries
-- **python-dotenv**: Environment variable management
-- **Pillow**: Image processing
-- **gtts**: Text-to-speech conversion
-- **sqlite3**: Database operations
-
 
 ## 🐛 Troubleshooting
 
 ### Common Issues
 
-#### Ollama Connection Issues
-```python
+#### Ollama Connection Problems
+```bash
 # Check Ollama status
-def check_ollama_available():
-    try:
-        response = requests.get(f"{OLLAMA_API_BASE}/tags", timeout=5)
-        return response.status_code == 200
-    except:
-        return False
+curl http://localhost:11434/tags
+
+# Restart Ollama service
+ollama serve
 ```
 
-**Solution**: Ensure Ollama is running on `localhost:11434`
+**Solution**: Ensure Ollama is running and accessible on port 11434
 
 #### Pinecone Authentication
 ```
@@ -249,71 +276,78 @@ Error: Pinecone API key not found
 ```
 **Solution**: Verify `.env` file contains valid `PINECONE_API_KEY`
 
-#### CSV Encoding Issues
+#### CSV Processing Issues
 ```
 UnicodeDecodeError: 'utf-8' codec can't decode
 ```
 **Solution**: System automatically tries multiple encodings (latin-1, cp1252, iso-8859-1)
 
+#### Model Availability
+```
+Warning: phi3:mini not found in Ollama
+```
+**Solution**: Install required models using `ollama pull phi3:mini`
+
 #### Memory Issues
 ```
 CUDA out of memory
 ```
-**Solution**: Use CPU-based models or reduce batch size
+**Solution**: Use smaller models or CPU-based inference
 
 ### Performance Optimization
 
-#### Vector Database
-- Use appropriate index dimensions
-- Implement batch processing for large documents
-- Regular index maintenance
+#### Model Selection Guidelines
+- **phi3:mini**: Best for speed and efficiency (recommended default)
+- **mistral**: Good balance of speed and accuracy
+- **llama3**: Higher accuracy, slower response
+- **gemma**: Google's optimized model
 
-#### Model Selection
-- Use `phi3:mini` for faster responses
-- Use `llama3` for better accuracy
-- Monitor GPU/CPU usage
+#### Vector Database Optimization
+- Use appropriate index dimensions for your embedding model
+- Implement batch processing for large document sets
+- Regular index maintenance and optimization
 
-#### Query Optimization
-- Implement query caching
-- Use connection pooling for databases
-- Optimize chunk sizes for retrieval
-
-### Monitoring & Logging
-
-#### System Health Checks
-```python
-# Monitor system components
-def system_health_check():
-    checks = {
-        'ollama': check_ollama_available(),
-        'pinecone': check_pinecone_connection(),
-        'models': check_model_availability()
-    }
-    return checks
-```
-
-#### Performance Metrics
-- Query response times
-- Model loading times
-- Vector similarity scores
-- Database query performance
-
+#### Query Performance
+- Implement query result caching where possible
+- Use connection pooling for database operations
+- Optimize chunk sizes for document retrieval
 
 ## 🚀 Future Enhancements
 
 ### Planned Features
-- **Multi-language Support**: Support for non-English documents
-- **Advanced Analytics**: Query performance analytics
+- **Multi-language Support**: Support for non-English documents and queries
+- **Advanced Analytics**: Query performance metrics and usage analytics
 - **Batch Processing**: Handle multiple files simultaneously
 - **API Integration**: RESTful API for external applications
-- **User Management**: Authentication and user sessions
+- **User Management**: Authentication and session management
 
 ### Technical Improvements
-- **Caching Layer**: Redis integration for faster responses
+- **Caching Layer**: Redis integration for faster response times
 - **Model Fine-tuning**: Domain-specific model adaptations
-- **Advanced Retrieval**: Hybrid search combining semantic and keyword search
-- **Scalability**: Kubernetes deployment support
+- **Hybrid Search**: Combine semantic and keyword search
+- **Container Deployment**: Docker and Kubernetes support
+- **Monitoring**: Health checks and performance monitoring
+
+### UI/UX Enhancements
+- **Dark Mode**: Theme switching capabilities
+- **Mobile Responsiveness**: Better mobile device support
+- **Export Functions**: Save results to various formats
+- **Advanced Filters**: Query filtering and sorting options
+
+## 📊 System Requirements
+
+### Minimum Requirements
+- **CPU**: 4-core processor
+- **RAM**: 8GB (16GB recommended)
+- **Storage**: 10GB free space
+- **Network**: Internet connection for Pinecone and YouTube APIs
+
+### Recommended Requirements
+- **CPU**: 8-core processor with GPU support
+- **RAM**: 16GB or higher
+- **Storage**: SSD with 20GB+ free space
+- **GPU**: NVIDIA GPU with 4GB+ VRAM (for faster model inference)
 
 ---
 
-*This documentation provides a comprehensive overview of the Multi-Modal RAG system. For specific implementation details, refer to the source code and configuration files.*
+*This documentation provides a comprehensive overview of the Multi-Modal RAG system. For specific implementation details and advanced configuration options, refer to the source code and configuration files.*
