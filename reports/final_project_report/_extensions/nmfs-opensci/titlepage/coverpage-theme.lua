@@ -67,7 +67,7 @@ okvals: a text table of ok styles. e.g. {"right", "center"}
 This function gets the value of something like coverpage-theme.title-style and sets a value coverpage-theme.title-style.plain (for example). It also
 does error checking against okvals. "plain" is always ok and if no value is set then the style is set to plain.
 page: titlepage or coverpage
-styleement: page, title, subtitle, header, footer, affiliation, etc
+styleelement: page, title, subtitle, header, footer, affiliation, date, etc
 okvals: a text table of ok styles. e.g. {"plain", "two-column"}
 --]]
   local function set_style (page, styleelement, okvals)
@@ -259,7 +259,7 @@ Set up the demos
     end
   end
 
--- set the coverpage values unless user passed them in
+-- set the coverpage values unless user passed them in as coverpage-key
   for key, val in pairs({"title", "author", "date"}) do
     if isEmpty(m['coverpage-' .. val]) then
       if not isEmpty(m[val]) then
@@ -268,15 +268,19 @@ Set up the demos
     end
   end
 -- make a bit more robust to whatever user passes in for coverpage-author
-  for key, val in pairs(m['coverpage-author']) do
-     m['coverpage-author'][key] = getVal(m['coverpage-author'][key])
+  if not isEmpty(m['coverpage-author']) then
+    for key, val in pairs(m['coverpage-author']) do
+      m['coverpage-author'][key] = getVal(m['coverpage-author'][key])
+    end
   end
 
 -- fix "true" to figure out what was passed in
   if choice == "true" then
     for key, val in pairs({"title", "author", "footer", "header", "date"}) do
       if not isEmpty(m['coverpage-' .. val]) then
-        m['coverpage-theme'][val .. "-style"] = "plain"
+        if isEmpty(m['coverpage-theme'][val .. "-style"]) then
+          m['coverpage-theme'][val .. "-style"] = "plain"
+        end
       else
         m['coverpage-theme'][val .. "-style"] = "none"
       end
@@ -337,7 +341,7 @@ if page-fontsize was passed in or if fontsize passed in but not spacing
 --]]
 
   -- if not passed in then it will take page-fontsize and page-spacing
-  for key, val in pairs({"title", "author", "footer", "header"}) do
+  for key, val in pairs({"title", "author", "footer", "header", "date"}) do
     if getVal(m["coverpage-theme"][val .. "-style"]) ~= "none" then
       if not isEmpty(m["coverpage-theme"]["page-fontsize"]) then
         if isEmpty(m["coverpage-theme"][val .. "-fontsize"]) then
@@ -347,7 +351,7 @@ if page-fontsize was passed in or if fontsize passed in but not spacing
     end
   end
   -- make sure spacing is set if user passed in fontsize
-  for key, val in pairs({"page", "title", "author", "footer", "header"}) do
+  for key, val in pairs({"page", "title", "author", "footer", "header", "date"}) do
     if not isEmpty(m['coverpage-theme'][val .. "-fontsize"]) then
       if isEmpty(m['coverpage-theme'][val .. "-spacing"]) then
         m['coverpage-theme'][val .. "-spacing"] = 1.2*getVal(m['coverpage-theme'][val .. "-fontsize"])
