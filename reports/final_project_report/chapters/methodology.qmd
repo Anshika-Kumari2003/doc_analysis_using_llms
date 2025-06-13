@@ -222,7 +222,8 @@ def generate_sql_with_ollama(query, table_name, columns, model=OLLAMA_MODEL):
     column_info = "\n".join([f"- {col}" for col in columns])
     
     prompt = f"""
-You are an expert SQL query generator. Given a natural language question and database schema, generate a precise SQL query.
+You are an expert SQL query generator. Given a natural language question and 
+database schema, generate a precise SQL query.
 
 Database Information:
 - Table name: {table_name}
@@ -236,7 +237,8 @@ IMPORTANT RULES:
 4. Always use LIMIT clause for SELECT queries (default LIMIT 10)
 5. For aggregation queries (COUNT, SUM, AVG, etc.), don't use LIMIT unless grouping
 6. Use LIKE operator with % wildcards for text searches
-7. If a column name in the question doesn't exist, find the closest matching column from the list above
+7. If a column name in the question doesn't exist, find the closest matching 
+   column from the list above
 """
 ```
 

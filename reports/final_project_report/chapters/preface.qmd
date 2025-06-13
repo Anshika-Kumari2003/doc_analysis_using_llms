@@ -1,7 +1,5 @@
 # Preface {.unnumbered}
 
-## Preface
-
 This project was undertaken as part of the internship program at the **Sabudh Foundation**, with the aim of applying theoretical concepts to real-world problem-solving using modern AI tools and techniques.
 
 The project was allotted to our team to explore how large language models (LLMs), speech recognition systems, and data interaction techniques can be used to simplify access to information across various data formats—documents, videos, and structured spreadsheets. Under the valuable guidance of the Sabudh mentorship team, we worked collaboratively to build a unified solution that demonstrates the power of Retrieval-Augmented Generation (RAG), YouTube transcript analysis, and natural language querying over Excel data.

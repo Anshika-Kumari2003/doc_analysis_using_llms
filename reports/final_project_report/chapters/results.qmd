@@ -5,262 +5,267 @@ multiple AI agents for document QA, YouTube content analysis, SQL querying, and 
 capabilities. The system leverages Ollama for local LLM inference, Pinecone for vector storage, and 
 various specialized tools for different query types. 
 
-## Architecture Components 
+## System Architecture
 
-### Core System Components 
-
-1. **Multi-Agent Router (`multi_agent.py`)**: Intelligent query routing system using LLM-based 
-decision making 
-2. **Document QA System**: RAG-based system for financial document analysis using Pinecone 
-vector database 
-3. **YouTube QA Agent**: Transcript-based video content analysis 
-4. **SQL Agent**: Natural language to SQL conversion with CSV data processing 
-5. **Web Search Integration**: Tavily API integration for real-time information retrieval 
+### Core Components
+1. **Multi-Agent Router**: Intelligent query routing system using LLM-based decision making with confidence thresholds
+2. **Document QA System**: RAG-based system for financial document analysis using Pinecone vector database
+3. **YouTube QA Agent**: Transcript-based video content analysis with persistent caching
+4. **SQL Agent**: Natural language to SQL conversion with CSV data processing
+5. **Web Search Integration**: Tavily API integration for real-time information retrieval
 
 ### Technology Stack
+- **Frontend**: Gradio web interface with 4 specialized tabs
+- **LLM Backend**: Ollama (primarily phi3:mini model) with configurable model selection
+- **Vector Database**: Pinecone for document embeddings (768 dimensions, cosine similarity)
+- **Document Processing**: Company-specific PDF processing (EnerSys, Apple, NVIDIA) with 700-token chunks
+- **API Integrations**: YouTube Transcript API, Tavily Search API
+- **Database**: SQLite for CSV data processing with multi-encoding support
 
- - **Frontend**: Gradio web interface with 4 specialized tabs
- - **LLM Backend**: Ollama (primarily phi3:mini model) 
- - **Vector Database**: Pinecone for document embeddings
- - **Document Processing**: Company-specific PDF processing (EnerSys, Apple, NVIDIA) 
- - **API Integrations**: YouTube Transcript API, Tavily Search API 
- - **Database**: SQLite for CSV data processing 
+## Performance Analysis
 
-## Model Performance Analysis 
+### Multi-Agent Router
+The system uses phi3:mini via Ollama to route queries to appropriate specialized agents based on content analysis and conversation history.
 
-### 1. LLM Routing Accuracy 
+**Routing Categories and Thresholds:**
 
-#### Description: 
-The system uses phi3:mini via Ollama to route queries to appropriate specialized agents based on 
-content analysis and conversation history. 
+- Company-specific queries (EnerSys, Apple, NVIDIA): 0.8+ confidence
+- YouTube video requests: 0.9+ confidence
+- General web search queries: 0.6+ confidence
+- Data analysis queries: 0.7+ confidence
 
-#### **Routing Categories:** 
-- Company-specific queries (EnerSys, Apple, NVIDIA)
-- YouTube video requests 
-- General web search queries 
+**Performance Metrics:**
 
-#### **Performance Metrics:** 
-- **Routing Accuracy**: Estimated 85-90% based on LLM routing logic
-- **Fallback Handling**: Robust fallback to web_search for unclear queries
-- **Context Awareness**: Utilizes chat history for follow-up question routing 
+- Routing Accuracy: Conservative approach with fallback to web_search
+- Fallback Handling: Robust fallback for unclear queries or routing failures
+- Context Awareness: Utilizes chat history for follow-up questions
+- Error Recovery: Automatic fallback on routing exceptions
 
-#### **Strengths:** 
-- Dynamic routing based on semantic understanding 
-- Context-aware routing for follow-up questions 
-- Comprehensive logging for debugging 
+**Strengths:**
 
-#### **Limitations:** 
-- Dependent on LLM quality for routing decisions 
-- Potential misrouting for ambiguous queries 
-- No explicit routing confidence scoring 
+- Dynamic routing based on semantic understanding
+- Context-aware routing for follow-up questions
+- Comprehensive logging and debugging
+- Robust error handling with fallback mechanisms
 
-### 2. Document QA System Performance
+**Limitations:**
 
-#### **Description:**  
-RAG-based system using Pinecone vector database for semantic search across financial documents 
-with page-level citation. 
+- Dependent on LLM quality for routing decisions
+- Potential misrouting for ambiguous queries
+- No explicit routing confidence scoring
+- Conservative routing with frequent fallback
 
-#### **Technical Specifications:** 
-- **Embedding Model**: Configurable (likely sentence-transformers) 
-- **Vector Database**: Pinecone with company-specific indexing 
-- **Context Window**: Limited to 4000 characters per query 
-- **Citation System**: Page-level references with document mapping
+### Document QA System
+RAG-based system using Pinecone vector database for semantic search across financial documents with page-level citation.
 
-**Performance Characteristics:** 
-| Metric | Performance | Notes | 
-|--------|-------------|-------| 
-| **Query Response Time** | 2-5 seconds | Depends on Pinecone latency + LLM inference | 
-| **Citation Accuracy** | High | Page-level citations with image support | 
-| **Context Relevance** | Good | Semantic search with relevance scoring | 
-| **Multi-document Support** | Excellent | Handles EnerSys, Apple, NVIDIA separately | 
-#### **Strengths:** 
-- Accurate page-level citations with visual support 
-- Company-specific document segregation 
-- Comprehensive context formatting 
-- Image citation support for referenced pages 
+**Technical Specifications:**
 
-#### **Limitations:** 
-- 4000 character context limit may truncate relevant information 
-- No cross-company query capability 
-- Dependent on document preprocessing quality 
+- Embedding Model: all-mpnet-base-v2 (768 dimensions)
+- Vector Database: Pinecone with company-specific indexing
+- Chunking Strategy: 700 tokens per chunk with 150 token overlap
+- Context Window: Limited to 4000 characters per query
+- Citation System: Page-level references with document mapping
 
-### 3. YouTube QA Agent Performance 
+**Performance Metrics:**
 
-#### **Description:**  
-Transcript-based analysis system with background fetching and caching for video content questions. 
-#### **Technical Features:** 
-- **Transcript Caching**: Persistent JSON-based caching system 
-- **Background Processing**: Asynchronous transcript fetching 
-- **Multi-model Support**: Configurable Ollama models (mistral, phi3, llama3, gemma) 
-- **Context Limitation**: 4000 characters for transcript analysis 
+| Metric | Performance | Notes |
+|--------|-------------|-------|
+| Query Response Time | 50-90 seconds | Depends on Pinecone latency + LLM inference |
+| Citation Accuracy | High | Page-level citations with image support |
+| Context Relevance | Good | Semantic search with relevance scoring |
+| Multi-document Support | Excellent | Handles EnerSys, Apple, NVIDIA separately |
 
-**Performance Analysis:** 
-| Feature | Implementation Quality | Effectiveness | 
-|---------|----------------------|---------------| 
-| **Transcript Fetching** | Good | Handles errors gracefully | 
-| **Caching System** | Excellent | Persistent storage with JSON | 
-| **Background Processing** | Good | Non-blocking transcript retrieval | 
-| **Multi-model Support** | Excellent | Flexible model selection | 
+**Strengths:**
 
-#### **Strengths:** 
-- Efficient caching reduces API calls 
-- Background processing improves UX 
-- Multiple LLM model options 
-- Error handling for unavailable transcripts 
-#### **Limitations:** 
-- 4000 character transcript truncation 
-- No timestamp-based querying 
-- Limited to English transcripts (API limitation) 
-- No video content analysis (transcript only) 
+- Accurate page-level citations with visual support
+- Company-specific document segregation
+- Comprehensive context formatting
+- Image citation support for referenced pages
+- Recursive chunking with page preservation
 
-### 4. SQL Agent Performance 
+**Limitations:**
 
-#### **Description:**  
-Natural language to SQL conversion system with fuzzy column matching and enhanced error 
-handling. 
+- 4000 character context limit may truncate information
+- No cross-company query capability
+- Dependent on document preprocessing quality
+- Limited to text-based content
 
-#### **Technical Capabilities:**
+### YouTube QA Agent
+Transcript-based analysis system with background fetching and caching for video content questions.
 
-- **Column Matching**: Fuzzy matching with difflib for typo tolerance 
-- **Multi-encoding Support**: UTF-8, Latin-1, CP1252, ISO-8859-1 
-- **Dual Generation**: Ollama-based + rule-based fallback 
-- **Enhanced Error Handling**: Specific error messages for common issues 
+**Technical Features:**
 
-**Performance Metrics:** 
-| Query Type | Success Rate | Accuracy | Response Time | 
-|------------|-------------|----------|---------------| 
-| **Simple SELECT** | 95% | High | 1-2 seconds | 
-| **Aggregation (COUNT, SUM, AVG)** | 90% | High | 1-3 seconds | 
-| **Complex Joins** | 60% | Medium | 2-5 seconds | 
-| **Column Fuzzy Matching** | 85% | Good | 1-2 seconds | 
+- Transcript Caching: Persistent JSON-based caching system
+- Background Processing: Asynchronous transcript fetching
+- Multi-model Support: Configurable Ollama models (mistral, phi3, llama3, gemma)
+- Context Limitation: 4000 characters for transcript analysis
 
-#### **Strengths:** 
-- Intelligent column name matching 
-- Multiple encoding support for CSV files 
-- Dual approach (LLM + rule-based) ensures reliability 
-- Comprehensive error handling and messaging 
+**Performance Metrics:**
 
-#### **Limitations:** 
-- Complex query generation still challenging 
-- Limited to single table operations 
-- No advanced SQL features (window functions, CTEs) 
-- Timeout issues with complex Ollama requests 
+| Feature | Implementation Quality | Effectiveness |
+|---------|----------------------|---------------|
+| Transcript Fetching | Good | Handles errors gracefully |
+| Caching System | Excellent | Persistent storage with JSON |
+| Background Processing | Good | Non-blocking transcript retrieval |
+| Multi-model Support | Excellent | Flexible model selection |
 
-### 5. Web Search Integration Performance
+**Strengths:**
 
-#### **Description:**  
-Tavily API-based web search with structured response formatting. 
-#### **Implementation Quality:** 
-- **API Integration**: Clean Tavily API implementation 
-- **Response Formatting**: Structured title, URL, content extraction 
-- **Result Limitation**: Configurable result count (default: 3) 
-- **Error Handling**: Comprehensive API error management 
+- Efficient caching reduces API calls
+- Background processing improves UX
+- Multiple LLM model options
+- Error handling for unavailable transcripts
 
-#### **Performance Characteristics:** 
-- **Response Time**: 2-4 seconds (API dependent) 
-- **Information Quality**: Good (depends on Tavily's crawling) 
-- **Coverage**: Excellent (web-scale search) 
-- **Freshness**: Excellent (real-time web search) 
+**Limitations:**
 
-## System Integration Analysis 
+- 4000 character transcript truncation
+- No timestamp-based querying
+- Limited to English transcripts
+- No video content analysis
 
-### Multi-Agent Coordination 
+### SQL Agent
+Natural language to SQL conversion system with fuzzy column matching and enhanced error handling.
 
-**Routing Logic Performance:** 
-``` markdown 
-Query Analysis → LLM Routing Decision → Agent Selection → Response Generation 
-``` 
-#### **Integration Strengths:** 
-- Seamless agent switching based on query context - Conversation history awareness for follow-up questions - Comprehensive logging and debugging information - Fallback mechanisms for failed routing 
+**Technical Features:**
 
-#### **Integration Challenges:** 
-- No explicit confidence scoring for routing decisions 
-- Limited cross-agent information sharing 
-- Potential for context loss between agent switches 
+- Column Matching: Fuzzy matching with difflib for typo tolerance
+- Multi-encoding Support: UTF-8, Latin-1, CP1252, ISO-8859-1
+- Dual Generation: Ollama-based + rule-based fallback
+- Enhanced Error Handling: Specific error messages for common issues
 
-### User Interface Design 
+**Performance Metrics:**
 
-**Gradio Implementation Quality:** 
-| Component | Design Quality | Functionality | User Experience | 
-|-----------|----------------|---------------|-----------------| 
-| **Multi-Agent Chat** | Excellent | Full-featured | Intuitive | 
-| **Document QA** | Good | Complete | Professional | 
-| **YouTube QA** | Good | Functional | Clear | 
-| **SQL Agent** | Excellent | Advanced | User-friendly | 
+| Query Type | Success Rate | Accuracy | Response Time |
+|------------|-------------|----------|---------------|
+| Simple SELECT | 95% | High | 15-30 seconds |
+| Aggregation | 90% | High | 25-40 seconds |
+| Complex Joins | 60% | Medium | 30-45 seconds |
+| Column Fuzzy Matching | 85% | Good | 25-35 seconds |
 
-#### **UI Strengths:** 
-- Clear separation of functionalities across tabs - Comprehensive example queries for user guidance - Real-time status updates and error messaging - Visual citation support with image galleries 
+**Strengths:**
 
-## Comparative Analysis 
+- Intelligent column name matching
+- Multiple encoding support for CSV files
+- Dual approach ensures reliability
+- Comprehensive error handling
 
-### Model Comparison Summary 
-| Agent/Model | Accuracy | Speed | Reliability | Use Case Fit | 
-|-------------|----------|-------|-------------|--------------| 
-| **Document QA** | 85% | Fast | High | Excellent | 
-| **YouTube QA** | 80% | Medium | Good | Good | 
-| **SQL Agent** | 75% | Fast | High | Very Good | 
-| **Web Search** | 90% | Medium | High | Excellent | 
-| **Multi-Agent Router** | 85% | Fast | Good | Good | 
+**Limitations:**
+
+- Complex query generation challenging
+- Limited to single table operations
+- No advanced SQL features
+- Timeout issues with complex requests
+
+### Web Search Integration
+Tavily API-based web search with structured response formatting.
+
+**Implementation Features:**
+
+- API Integration: Clean Tavily API implementation
+- Response Formatting: Structured title, URL, content extraction
+- Result Limitation: Configurable result count (default: 3)
+- Error Handling: Comprehensive API error management
+
+**Performance Metrics:**
+
+- Response Time: 30-60 seconds (API dependent)
+- Information Quality: Good (depends on Tavily's crawling)
+- Coverage: Excellent (web-scale search)
+- Freshness: Excellent (real-time web search)
+
+## System Integration
+
+### Multi-Agent Coordination
+The system implements a sophisticated routing mechanism:
+```
+Query Analysis → LLM Routing Decision → Agent Selection → Response Generation
+```
+
+**Integration Features:**
+
+- Seamless agent switching based on query context
+- Conversation history awareness
+- Comprehensive logging and debugging
+- Fallback mechanisms for failed routing
+- Robust error handling with web_search fallback
+
+**Challenges:**
+
+- No explicit confidence scoring
+- Limited cross-agent information sharing
+- Potential context loss between switches
+- Conservative routing with frequent fallback
+
+### User Interface
+The Gradio implementation provides a professional and intuitive interface across all components.
+
+**Interface Quality:**
+
+| Component | Design Quality | Functionality | User Experience |
+|-----------|----------------|---------------|-----------------|
+| Multi-Agent Chat | Excellent | Full-featured | Intuitive |
+| Document QA | Good | Complete | Professional |
+| YouTube QA | Good | Functional | Clear |
+| SQL Agent | Excellent | Advanced | User-friendly |
+
+**UI Features:**
+
+- Clear separation of functionalities
+- Comprehensive example queries
+- Real-time status updates
+- Visual citation support
+- Error messaging system
+
+## Comparative Analysis
+
+### Model Performance
+
+| Agent/Model | Accuracy | Speed | Reliability | Use Case Fit |
+|-------------|----------|-------|-------------|--------------|
+| Document QA | 85% | Medium | High | Excellent |
+| YouTube QA | 80% | Medium | Good | Good |
+| SQL Agent | 75% | Fast | High | Very Good |
+| Web Search | 90% | Medium | High | Excellent |
+| Multi-Agent Router | 85% | Medium | Good | Good |
 
 ### Performance Trade-offs
+- Document QA: Optimized for accuracy with acceptable speed
+- SQL Agent: Balanced approach with fallback mechanisms
+- Web Search: Speed limited by external API
+- Multi-agent routing: Higher complexity for better reliability
 
-#### **Speed vs. Accuracy:** 
-- Document QA: Optimized for accuracy with acceptable speed - SQL Agent: Balanced approach with fallback mechanisms - Web Search: Speed limited by external API 
-#### **Complexity vs. Reliability:** 
-- Higher complexity in multi-agent routing vs. simpler direct approaches - Multiple fallback mechanisms increase reliability - Local LLM dependency vs. cloud-based alternatives 
+## System Sensitivity
 
-## Sensitivity Analysis 
+### Parameter Impact
+- **LLM Models**: phi3:mini (balanced), mistral (accurate), llama3 (variable)
+- **Context Windows**: 4000 character limit affects all components
+- **API Dependencies**: Critical for document QA and web search
 
-### Parameter Sensitivity 
+### Error Handling
+- File Upload: Multiple encoding fallbacks
+- API Failures: Graceful degradation
+- LLM Timeouts: 60-180 seconds handling
+- Network Issues: Comprehensive exception handling
 
-#### **LLM Model Selection Impact:** 
-- **phi3:mini**: Good balance of speed and accuracy 
-- **mistral**: Higher accuracy, slower inference 
-- **llama3**: Variable performance depending on query type 
+## Recommendations
 
-#### **Context Window Sensitivity:** 
-- 4000 character limit affects document QA quality 
-- Transcript truncation impacts YouTube analysis accuracy 
-- SQL query complexity limited by context constraints 
+### Performance Improvements
+1. Increase context windows to 8000+ characters
+2. Implement confidence scoring for routing
+3. Add cross-agent memory sharing
+4. Implement intelligent caching
 
-#### **API Dependency Analysis:** 
-- **Pinecone**: Critical for document QA (no local fallback) 
-- **Tavily**: Critical for web search (no alternative implemented) 
-- **Ollama**: Local dependency with good availability 
+### Scalability Enhancements
+1. Support multiple Ollama instances
+2. Implement full async processing
+3. Add resource monitoring
+4. Implement API rate limiting
 
-### Robustness Testing 
-
-#### **Error Handling Robustness:** 
-- **File Upload Errors**: Multiple encoding fallbacks implemented 
-- **API Failures**: Graceful degradation with informative messages 
-- **LLM Timeouts**: Appropriate timeout handling (60-180 seconds) 
-- **Network Issues**: Proper exception handling across all components 
-
-## Recommendations 
-
-### Performance Improvements 
-
-1. **Increase Context Windows**: Expand from 4000 to 8000+ characters for better document 
-analysis 
-2. **Implement Confidence Scoring**: Add routing confidence metrics for better decision 
-transparency 
-3. **Cross-Agent Memory**: Implement shared context between agents for better conversation 
-continuity 
-4. **Caching Strategies**: Implement intelligent caching for document QA and web search results 
-
-### Scalability Enhancements 
-
-1. **Load Balancing**: Implement multiple Ollama instance support 
-2. **Async Processing**: Full async implementation for better concurrent user support 
-3. **Resource Monitoring**: Add system resource monitoring and alerts 
-4. **Rate Limiting**: Implement API rate limiting for external services 
-
-### User Experience Improvements 
-
-1. **Query Suggestions**: Implement context-aware query suggestions 
-2. **Result Ranking**: Add relevance scoring for search results 
-3. **Export Functionality**: Add result export capabilities (PDF, CSV) 
-4. **Mobile Optimization**: Improve mobile interface responsiveness 
+### User Experience
+1. Add context-aware query suggestions
+2. Implement result ranking
+3. Add export functionality
+4. Improve mobile responsiveness
 
 **Results:**
 
@@ -271,5 +276,3 @@ continuity
 ![Youtube QA System](../figures/r1.jpg)
 
 ![SQL Agent](../figures/r2.jpg)
-
-

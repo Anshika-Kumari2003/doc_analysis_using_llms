@@ -6,13 +6,14 @@ project:
     - index.qmd            
 book:
   title: "Document Analysis Using Large Language Models (LLM's)"  # Change to your title of the project
-  author: -Vartika
-          - Atul Kumar
-          -Pratheeksha
-          - Sourav
-          -Jayatu Sarbadhikary
-          - Aditya Siraskar
-          - Anshika
+  author: 
+    - Vartika
+    - Atul Kumar
+    - Pratheeksha
+    - Sourav Suman
+    - Jayatu Sarbadhikary
+    - Aditya Siraskar
+    - Anshika Kumari
   date: May 18, 2025
   reader-mode: true
   page-footer:
