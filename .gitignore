@@ -1,6 +1,9 @@
 .env
 /.luarc.json
 
+# Ignore Quarto output
+reports/final_project_report/_output/
+
 # Ignore the embedding model
 /llm_pipe/Ingestion_Retrieval/models/embedding_model
 
