@@ -8,7 +8,7 @@ import fitz  # PyMuPDF
 from typing import List, Dict, Any
 
 # Import our custom PDF parser
-from pdf_parser import parse_pdf
+from .pdf_parser import parse_pdf
 
 # Import embedding model
 from sentence_transformers import SentenceTransformer
@@ -17,7 +17,7 @@ from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone, ServerlessSpec
 
 # Import our updated chunker
-from document_chunker import process_documents
+from .document_chunker import process_documents
 
 # Load environment variables
 load_dotenv()
