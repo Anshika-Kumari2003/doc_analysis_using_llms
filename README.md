@@ -132,6 +132,7 @@ CSV Upload → Create SQLite DB → Natural Language Query → Generate SQL → 
 - Python 3.8+
 - Ollama installed and running locally on port 11434
 - Pinecone account and API key
+- Tavily API key
 
 ### Required Ollama Models
 ```bash
@@ -164,24 +165,35 @@ pip install sqlite3  # Usually included with Python
 ## ⚙️ Configuration
 
 ### Environment Variables
-Create a `.env` file in the project root:
+Create a `.env` file in the `llm_pipe/Ingestion_Retrieval` directory:
 ```env
-PINECONE_API_KEY=your_pinecone_api_key_here
-INDEX_NAME=your_pinecone_index_name
-MODELS_DIR=./models
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-OLLAMA_API_BASE=http://localhost:11434
-OLLAMA_MODEL=phi3:mini
+api_key=your_pinecone_api_key_here
+TAVILY_API_KEY=your_tavily_api_key_here
+```
+
+### Configuration Settings
+The system uses the following default settings in `config.py`:
+```python
+PINECONE_API_KEY: str
+INDEX_NAME: str = "document-analysis"
+MODELS_DIR: str = "models"
+EMBEDDING_MODEL: str = "all-mpnet-base-v2"
+OLLAMA_API_BASE: str = "http://localhost:11434/api"
+OLLAMA_MODEL: str = "phi3:mini"
 ```
 
 ### Company PDF Mapping
-Configure document mapping in `config.py`:
+The system is configured with the following document mapping in `config.py`:
 ```python
 COMPANY_PDF_MAPPING = {
-    "enersys": ["enersys_10k_2023.pdf", "enersys_annual_report.pdf"],
-    "apple": ["apple_10k_2023.pdf", "apple_annual_report.pdf"],
-    "nvidia": ["nvidia_10k_2023.pdf", "nvidia_earnings.pdf"],
-    # Add more mappings as needed
+    "enersys": ["EnerSys-2023-10K.pdf", "EnerSys-2017-10K.pdf"],
+    "amazon": ["Amazon10k2022.pdf"],
+    "apple": ["Apple_10-K-2021.pdf"],
+    "nvidia": ["Nvidia.pdf"],
+    "tesla": ["Tesla.pdf"],
+    "lockheed": ["Lockheed_martin_10k.pdf"],
+    "advent": ["Advent_Technologies_2022_10K.pdf"],
+    "transdigm": ["TransDigm-2022-10K.pdf"]
 }
 ```
 
@@ -190,19 +202,43 @@ COMPANY_PDF_MAPPING = {
 project_root/
 ├── llm_pipe/
 │   ├── Ingestion_Retrieval/
+│   │   ├── pinecone_integration.py
 │   │   ├── pinecone_retrieval.py
-│   │   └── youtube_qa_agent.py
+│   │   ├── document_chunker.py
+│   │   ├── pdf_parser.py
+│   │   ├── youtube_qa_agent.py
+│   │   ├── __init__.py
+│   │   └── .env
 │   ├── gradio_app.py
-│   └── multi_agent.py
+│   ├── multi_agent.py
+│   ├── multi_agent_tools.py
+│   └── sql_agent.py
 ├── jsons/                 # Image citation mappings
 ├── pdfs/                  # Company PDF documents
-├── page_images/           # Extracted page images
-├── .env                   # Environment configuration
-├── config.py              # Application configuration
-└── requirements.txt
+├── page_images/          # Extracted page images
+├── reports/              # Generated reports
+├── notebooks/            # Jupyter notebooks
+├── Flow diagram/         # System architecture diagrams
+├── config.py             # Application configuration
+├── requirements.txt      # Core dependencies
+├── full-requirements.txt # All dependencies
+├── docker-compose.yml    # Docker configuration
+└── Dockerfile           # Docker build file
 ```
 
 ## 📖 Usage Guide
+
+### Running the System
+
+1. **First, ingest documents into Pinecone**:
+```bash
+python -m llm_pipe.Ingestion_Retrieval.pinecone_integration
+```
+
+2. **Then, start the Gradio interface**:
+```bash
+python -m llm_pipe.gradio_app
+```
 
 ### 🤖 Multi-Agent Assistant
 1. **Ask Questions**: Type questions about companies, YouTube content, or general topics
