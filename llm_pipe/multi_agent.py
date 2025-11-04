@@ -1,5 +1,5 @@
-from langchain.schema import SystemMessage 
-from langchain.schema import HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain.agents import AgentExecutor
 from langchain.agents.format_scratchpad import format_to_openai_functions
 from langchain.schema.runnable import RunnablePassthrough
